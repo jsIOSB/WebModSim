@@ -366,6 +366,28 @@
                 <button class="preset-btn" data-preset="pulse">Pulse</button>
             </div>
         </div>
+        
+        <div class="formula-row" style="margin-top: 8px;">
+            <label data-tooltip="Complete signal formula.&#10;Editing this overrides A(t), φ(t), Δf(t).">Full s(t):</label>
+        </div>
+        <textarea id="formula-full" rows="2" style="
+            width: 100%;
+            padding: 4px 6px;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.7rem;
+            resize: vertical;
+            min-height: 36px;
+        "></textarea>
+        <div style="display: flex; gap: 4px; margin-top: 4px;">
+            <label class="checkbox-group">
+                <input type="checkbox" id="use-full-formula">
+                <span data-tooltip="Use the full formula directly instead of A(t)·cos(...)">Use Full Formula</span>
+            </label>
+        </div>
 
         <!-- Parameters Panel -->
         <div class="panel">
@@ -434,6 +456,12 @@
         <!-- Plot Options Panel -->
         <div class="panel">
             <div class="panel-title">Plot Components</div>
+            <div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #0f3460;">
+                <label class="checkbox-group">
+                    <input type="checkbox" id="show-power">
+                    <span data-tooltip="Plot |E(t)|² (optical power/intensity).&#10;Photodiodes and spectrometers measure&#10;power, not the electric field directly." style="font-weight: 600; color: #e94560;">Show Power |E|²</span>
+                </label>
+            </div>
             <div class="checkbox-row">
                 <label class="checkbox-group">
                     <input type="checkbox" id="show-envelope" checked>
@@ -561,6 +589,8 @@
             formulaAmp: document.getElementById('formula-amp'),
             formulaPhase: document.getElementById('formula-phase'),
             formulaFreq: document.getElementById('formula-freq'),
+            formulaFull: document.getElementById('formula-full'),
+            useFullFormula: document.getElementById('use-full-formula'),
             tStart: document.getElementById('t-start'),
             tEnd: document.getElementById('t-end'),
             freqRange: document.getElementById('freq-range'),
@@ -570,6 +600,7 @@
             showCarrier: document.getElementById('show-carrier'),
             showModSignal: document.getElementById('show-mod-signal'),
             showPhase: document.getElementById('show-phase'),
+            showPower: document.getElementById('show-power'),
             autoUpdate: document.getElementById('auto-update'),
             updateBtn: document.getElementById('update-btn'),
             infoText: document.getElementById('info-text'),
@@ -648,6 +679,47 @@
             }
         }
 
+function buildFullFormula() {
+    const ampFormula = elements.formulaAmp.value.trim();
+    const phaseFormula = elements.formulaPhase.value.trim();
+    const freqFormula = elements.formulaFreq.value.trim();
+    
+    let fullFormula;
+    
+    if (freqFormula === '0' && phaseFormula === '0') {
+        fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t)`;
+    } else if (freqFormula === '0') {
+        fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t + (${phaseFormula}))`;
+    } else {
+        // Note: freqPhase requires integration, shown as placeholder
+        fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t + (${phaseFormula}) + freqPhase)`;
+    }
+    
+    // Only update if not using full formula mode
+    if (!elements.useFullFormula.checked) {
+        elements.formulaFull.value = fullFormula;
+    }
+}
+
+function evalFullFormula(formula, t, params, freqPhase) {
+    try {
+        const func = new Function('t', 'fc', 'fs', 'fm', 'Am', 'A0', 'beta', 'freqPhase', 'Math',
+            `"use strict"; return ${formula};`);
+        
+        if (Array.isArray(t)) {
+            return t.map((ti, i) => {
+                const fp = Array.isArray(freqPhase) ? freqPhase[i] : freqPhase;
+                const result = func(ti, params.fc, params.fs, params.fm, 
+                                   params.Am, params.A0, params.beta, fp, Math);
+                return isFinite(result) ? result : 0;
+            });
+        }
+        return 0;
+    } catch (e) {
+        console.error('Full formula error:', e);
+        return Array.isArray(t) ? t.map(() => 0) : 0;
+    }
+}
         function getParams() {
             return {
                 fc: parseFloat(paramInputs.fc.value) || 100,
@@ -664,41 +736,69 @@
             const tStart = parseFloat(elements.tStart.value) || 0;
             const tEnd = parseFloat(elements.tEnd.value) || 0.5;
             const fs = p.fs;
-
+        
             const numSamples = Math.floor((tEnd - tStart) * fs);
             if (numSamples <= 0 || numSamples > 1000000) {
                 return null;
             }
-
+        
             const t = new Float64Array(numSamples);
             for (let i = 0; i < numSamples; i++) {
                 t[i] = tStart + i / fs;
             }
-
-            let amplitude = evalFormula(elements.formulaAmp.value, Array.from(t), p);
-            let phase = evalFormula(elements.formulaPhase.value, Array.from(t), p);
-            let freqOffset = evalFormula(elements.formulaFreq.value, Array.from(t), p);
-
-            if (!Array.isArray(amplitude)) amplitude = t.map(() => amplitude);
-            if (!Array.isArray(phase)) phase = t.map(() => phase);
-            if (!Array.isArray(freqOffset)) freqOffset = t.map(() => freqOffset);
-
-            const signal = new Float64Array(numSamples);
-            let freqPhase = 0;
+        
+            const tArray = Array.from(t);
+            let signal;
+            let amplitude;
+            let phase;
+        
+            // Calculate frequency phase (integration of freq offset) - needed for both modes
+            let freqOffset = evalFormula(elements.formulaFreq.value, tArray, p);
+            if (!Array.isArray(freqOffset)) freqOffset = tArray.map(() => freqOffset);
             
+            const freqPhase = new Float64Array(numSamples);
+            let cumPhase = 0;
             for (let i = 0; i < numSamples; i++) {
                 if (freqOffset[i] !== 0) {
-                    freqPhase += 2 * Math.PI * freqOffset[i] / fs;
+                    cumPhase += 2 * Math.PI * freqOffset[i] / fs;
                 }
-                signal[i] = amplitude[i] * Math.cos(2 * Math.PI * p.fc * t[i] + phase[i] + freqPhase);
+                freqPhase[i] = cumPhase;
             }
+        
+            if (elements.useFullFormula.checked) {
+                // Use full formula directly
+                signal = evalFullFormula(elements.formulaFull.value, tArray, p, Array.from(freqPhase));
+                if (!Array.isArray(signal)) signal = tArray.map(() => signal);
+                signal = new Float64Array(signal);
+                
+                // Estimate envelope from signal peaks (simple approach)
+                amplitude = signal.map(Math.abs);
+                phase = freqPhase;
+            } else {
+                // Build from components
+                amplitude = evalFormula(elements.formulaAmp.value, tArray, p);
+                phase = evalFormula(elements.formulaPhase.value, tArray, p);
+        
+                if (!Array.isArray(amplitude)) amplitude = tArray.map(() => amplitude);
+                if (!Array.isArray(phase)) phase = tArray.map(() => phase);
+        
+                signal = new Float64Array(numSamples);
+                for (let i = 0; i < numSamples; i++) {
+                    signal[i] = amplitude[i] * Math.cos(2 * Math.PI * p.fc * t[i] + phase[i] + freqPhase[i]);
+                }
+                
+                // Update full formula display
+                buildFullFormula();
+            }
+        
+            const carrier = tArray.map(ti => p.A0 * Math.cos(2 * Math.PI * p.fc * ti));
+            const modSignal = tArray.map(ti => p.Am * Math.sin(2 * Math.PI * p.fm * ti));
+            const power = signal.map(s => s * s);
 
-            const carrier = t.map(ti => p.A0 * Math.cos(2 * Math.PI * p.fc * ti));
-            const modSignal = t.map(ti => p.Am * Math.sin(2 * Math.PI * p.fm * ti));
+            return { t, signal, amplitude, phase, carrier, modSignal, power, params: p, tStart, tEnd };
 
-            return { t, signal, amplitude, phase, carrier, modSignal, params: p, tStart, tEnd };
         }
-
+        
         function computeSpectrum(t, signal, fs) {
             const n = signal.length;
             let nfft = parseInt(elements.nfft.value) || 0;
@@ -746,24 +846,53 @@
             return { ctx, width: rect.width, height: rect.height };
         }
 
-        function plotTimeDomain(data) {
+        function plotTimeDomain(data, showPower = false) {
             const { ctx, width, height } = setupCanvas(elements.timeCanvas);
             const margin = { top: 10, right: 15, bottom: 32, left: 50 };
             const plotWidth = width - margin.left - margin.right;
             const plotHeight = height - margin.top - margin.bottom;
-
+        
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, width, height);
-
+        
             if (!data) return;
-
-            const { t, signal, amplitude, phase, carrier, modSignal, tStart, tEnd, params } = data;
-
-            let yMin = -params.A0 * 1.5, yMax = params.A0 * 1.5;
+        
+            const { t, signal, amplitude, phase, carrier, modSignal, power, tStart, tEnd, params } = data;
             
+            // Select what to plot
+            const mainSignal = showPower ? power : signal;
+            const mainLabel = showPower ? 'Power |E|²' : 'Signal';
+        
+            // Calculate actual data range
+            let dataMax = Math.max(...mainSignal.map(Math.abs));
+            let dataMin = showPower ? 0 : -dataMax;  // Power is always positive
+            
+            if (!showPower) {
+                if (elements.showEnvelope.checked) {
+                    dataMax = Math.max(dataMax, Math.max(...amplitude.map(Math.abs)));
+                }
+                if (elements.showCarrier.checked) {
+                    dataMax = Math.max(dataMax, Math.max(...carrier.map(Math.abs)));
+                }
+                if (elements.showModSignal.checked) {
+                    dataMax = Math.max(dataMax, Math.max(...modSignal.map(Math.abs)));
+                }
+                dataMin = -dataMax;
+            }
+            
+            dataMax = dataMax || params.A0;
+            let yMin = dataMin * 1.1, yMax = dataMax * 1.1;
+            
+            if (showPower) {
+                yMin = 0;
+                yMax = dataMax * 1.1;
+            }
+        
             const scaleX = (val) => margin.left + (val - tStart) / (tEnd - tStart) * plotWidth;
             const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
-
+        
+            // ... [grid and axis drawing code stays the same] ...
+        
             // Grid
             ctx.strokeStyle = '#0f3460';
             ctx.lineWidth = 0.5;
@@ -775,7 +904,7 @@
                 ctx.lineTo(width - margin.right, y);
                 ctx.stroke();
             }
-
+        
             for (let i = 0; i <= 8; i++) {
                 const x = margin.left + (i / 8) * plotWidth;
                 ctx.beginPath();
@@ -783,7 +912,7 @@
                 ctx.lineTo(x, height - margin.bottom);
                 ctx.stroke();
             }
-
+        
             // Axes
             ctx.strokeStyle = '#444';
             ctx.lineWidth = 1;
@@ -792,7 +921,7 @@
             ctx.lineTo(margin.left, height - margin.bottom);
             ctx.lineTo(width - margin.right, height - margin.bottom);
             ctx.stroke();
-
+        
             // Labels
             ctx.fillStyle = '#666';
             ctx.font = '10px system-ui';
@@ -804,14 +933,14 @@
                 ctx.fillText((tVal * 1000).toFixed(1), x, height - margin.bottom + 12);
             }
             ctx.fillText('Time (ms)', margin.left + plotWidth / 2, height - 4);
-
+        
             ctx.textAlign = 'right';
             for (let i = 0; i <= 5; i++) {
                 const yVal = yMax - (i / 5) * (yMax - yMin);
                 const y = margin.top + (i / 5) * plotHeight;
-                ctx.fillText(yVal.toFixed(1), margin.left - 4, y + 3);
+                ctx.fillText(showPower ? yVal.toFixed(2) : yVal.toFixed(1), margin.left - 4, y + 3);
             }
-
+        
             function plotLine(data, color, lineWidth = 1) {
                 ctx.strokeStyle = color;
                 ctx.lineWidth = lineWidth;
@@ -831,46 +960,59 @@
                 }
                 ctx.stroke();
             }
-
+        
             const legendItems = [];
-
-            if (elements.showCarrier.checked) {
-                plotLine(carrier, '#22c55e', 0.7);
-                legendItems.push({ color: '#22c55e', label: 'Carrier' });
+        
+            if (!showPower) {
+                // Only show these in field mode
+                if (elements.showCarrier.checked) {
+                    plotLine(carrier, '#22c55e', 0.7);
+                    legendItems.push({ color: '#22c55e', label: 'Carrier' });
+                }
+        
+                if (elements.showModSignal.checked) {
+                    plotLine(modSignal, '#a855f7', 0.8);
+                    legendItems.push({ color: '#a855f7', label: 'Mod' });
+                }
+        
+                if (elements.showPhase.checked && phase.some(p => p !== 0)) {
+                    const maxPhase = Math.max(...phase.map(Math.abs)) || 1;
+                    const phaseScaled = phase.map(p => p / maxPhase * params.A0);
+                    plotLine(phaseScaled, '#06b6d4', 0.8);
+                    legendItems.push({ color: '#06b6d4', label: 'Phase' });
+                }
             }
-
-            if (elements.showModSignal.checked) {
-                plotLine(modSignal, '#a855f7', 0.8);
-                legendItems.push({ color: '#a855f7', label: 'Mod' });
-            }
-
-            if (elements.showPhase.checked && phase.some(p => p !== 0)) {
-                const maxPhase = Math.max(...phase.map(Math.abs)) || 1;
-                const phaseScaled = phase.map(p => p / maxPhase * params.A0);
-                plotLine(phaseScaled, '#06b6d4', 0.8);
-                legendItems.push({ color: '#06b6d4', label: 'Phase' });
-            }
-
-            plotLine(signal, '#3b82f6', 1);
-            legendItems.push({ color: '#3b82f6', label: 'Signal' });
-
-            if (elements.showEnvelope.checked) {
+        
+            // Main signal (field or power)
+            plotLine(mainSignal, showPower ? '#f59e0b' : '#3b82f6', 1);
+            legendItems.push({ color: showPower ? '#f59e0b' : '#3b82f6', label: mainLabel });
+        
+            if (!showPower && elements.showEnvelope.checked) {
                 plotLine(amplitude, '#ef4444', 1);
                 plotLine(amplitude.map(a => -a), '#ef4444', 1);
                 legendItems.push({ color: '#ef4444', label: 'Envelope' });
             }
-
+        
             elements.timeLegend.innerHTML = legendItems.map(item => 
                 `<div class="legend-item"><div class="legend-color" style="background:${item.color}"></div><span>${item.label}</span></div>`
             ).join('');
         }
 
-        function plotFrequencyDomain(data, spectrum) {
+        function plotFrequencyDomain(data, spectrum, showPower = false) {
             const { ctx, width, height } = setupCanvas(elements.freqCanvas);
             const margin = { top: 10, right: 15, bottom: 32, left: 50 };
             const plotWidth = width - margin.left - margin.right;
             const plotHeight = height - margin.top - margin.bottom;
 
+            const spectrumLabel = showPower ? 'Power Spectrum' : 'Spectrum';
+    
+            elements.freqLegend.innerHTML = `
+                <div class="legend-item"><div class="legend-color" style="background:${showPower ? '#f59e0b' : '#3b82f6'}"></div><span>${spectrumLabel}</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div><span>fc=${params.fc}Hz</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:#22c55e"></div><span>fc±fm</span></div>
+            `;
+
+            ctx.strokeStyle = showPower ? '#f59e0b' : '#3b82f6';
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, width, height);
 
@@ -1003,7 +1145,7 @@
                 <div class="legend-item"><div class="legend-color" style="background:#22c55e"></div><span>fc±fm</span></div>
             `;
         }
-
+        
         function updatePlots() {
             const startTime = performance.now();
             
@@ -1014,15 +1156,23 @@
                     elements.infoText.textContent = 'Invalid parameters';
                     return;
                 }
-
-                const spectrum = computeSpectrum(data.t, data.signal, data.params.fs);
+        
+                const showPower = elements.showPower.checked;
                 
-                plotTimeDomain(data);
-                plotFrequencyDomain(data, spectrum);
-
+                // Choose what to plot and analyze
+                const plotSignal = showPower ? data.power : data.signal;
+                const plotLabel = showPower ? 'Power |E|²' : 'Signal';
+                
+                // Compute spectrum of the selected signal
+                const spectrum = computeSpectrum(data.t, plotSignal, data.params.fs);
+                
+                plotTimeDomain(data, showPower);
+                plotFrequencyDomain(data, spectrum, showPower);
+        
                 const elapsed = (performance.now() - startTime).toFixed(0);
                 const freqRes = (data.params.fs / spectrum.nfft).toFixed(3);
-                elements.infoText.textContent = `${data.t.length} pts | NFFT ${spectrum.nfft} | Δf=${freqRes}Hz | ${elapsed}ms`;
+                const mode = showPower ? ' [Power]' : ' [Field]';
+                elements.infoText.textContent = `${data.t.length} pts | NFFT ${spectrum.nfft} | Δf=${freqRes}Hz | ${elapsed}ms${mode}`;
                     
             } catch (e) {
                 elements.infoText.textContent = `Error: ${e.message}`;
@@ -1059,6 +1209,30 @@
             el.addEventListener('change', updatePlots);
         });
 
+        elements.formulaFull.addEventListener('input', () => {
+            if (elements.useFullFormula.checked) {
+                scheduleUpdate();
+            }
+        });
+        
+        elements.showPower.addEventListener('change', updatePlots);
+        
+        elements.useFullFormula.addEventListener('change', () => {
+            if (!elements.useFullFormula.checked) {
+                buildFullFormula();
+            }
+            updatePlots();
+        });
+        
+        // Modify existing formula input listeners to also rebuild full formula:
+        [elements.formulaAmp, elements.formulaPhase, elements.formulaFreq].forEach(el => {
+            el.addEventListener('input', () => {
+                if (!elements.useFullFormula.checked) {
+                    buildFullFormula();
+                }
+                scheduleUpdate();
+            });
+        });
         document.querySelectorAll('.preset-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const preset = presets[btn.dataset.preset];
