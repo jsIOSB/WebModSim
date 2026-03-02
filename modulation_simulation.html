@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signal Modulation Visualizer</title>
+    <style>
+        * {
+
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: #16213e;
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 2px solid #0f3460;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            color: #e94560;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            gap: 1rem;
+            padding: 1rem;
+            overflow: hidden;
+        }
+
+        .controls {
+            width: 380px;
+            min-width: 380px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .controls::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .controls::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+
+        .controls::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 4px;
+        }
+
+        .panel {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #0f3460;
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #e94560;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .formula-help {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 0.75rem;
+            font-style: italic;
+        }
+
+        .formula-group {
+            margin-bottom: 0.75rem;
+        }
+
+        .formula-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 0.25rem;
+        }
+
+        .formula-group input[type="text"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+        }
+
+        .formula-group input[type="text"]:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .preset-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .preset-btn {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #eee;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .preset-btn:hover {
+            background: #0f3460;
+            border-color: #e94560;
+        }
+
+        .param-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.6rem;
+            gap: 0.5rem;
+        }
+
+        .param-label {
+            width: 130px;
+            font-size: 0.8rem;
+            color: #aaa;
+            cursor: help;
+            position: relative;
+        }
+
+        .param-input {
+            width: 70px;
+            padding: 0.3rem 0.4rem;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 0.8rem;
+            text-align: right;
+        }
+
+        .param-input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .param-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #0f3460;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .param-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #e94560;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .param-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .param-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #e94560;
+            cursor: pointer;
+            border: none;
+        }
+
+        .range-row {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .range-group {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .range-group label {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        .range-group input {
+            width: 80px;
+            padding: 0.3rem 0.4rem;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 0.8rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #e94560;
+            cursor: pointer;
+        }
+
+        .update-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+        }
+
+        .update-btn {
+            padding: 0.5rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            background: #e94560;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .update-btn:hover {
+            background: #ff6b6b;
+        }
+
+        .info-text {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.75rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #0f3460;
+        }
+
+        .plots {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-width: 0;
+        }
+
+        .plot-container {
+            flex: 1;
+            background: #16213e;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 300px;
+        }
+
+        .plot-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #e94560;
+            margin-bottom: 0.5rem;
+        }
+
+        .plot-canvas-wrapper {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+
+        .plot-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Tooltip styles */
+        .tooltip {
+            position: fixed;
+            background: #0f3460;
+            color: #eee;
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            max-width: 250px;
+            z-index: 1000;
+            pointer-events: none;
+            border: 1px solid #e94560;
+            line-height: 1.4;
+            display: none;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .controls {
+                width: 100%;
+                min-width: unset;
+                max-height: 40vh;
+            }
+            
+            .plots {
+                flex: unset;
+                height: 60vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Signal Modulation Visualizer</h1>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            <!-- Formulas Panel -->
+            <div class="panel">
+                <div class="panel-title">Modulation Formulas</div>
+                <div class="formula-help">Variables: t, fc, fs, fm, Am, A0, beta, Math.*</div>
+                
+                <div class="formula-group">
+                    <label data-tooltip="Time-varying amplitude envelope.&#10;For AM: A0*(1 + Am*sin(2π·fm·t))">Amplitude A(t):</label>
+                    <input type="text" id="formula-amp" value="A0 * (1 + Am * Math.sin(2*Math.PI*fm*t))">
+                </div>
+                
+                <div class="formula-group">
+                    <label data-tooltip="Phase modulation term in radians.&#10;For PM: beta*sin(2π·fm·t)">Phase φ(t) [radians]:</label>
+                    <input type="text" id="formula-phase" value="0">
+                </div>
+                
+                <div class="formula-group">
+                    <label data-tooltip="Instantaneous frequency deviation.&#10;For FM: beta*fm*sin(2π·fm·t)">Freq. offset Δf(t) [Hz]:</label>
+                    <input type="text" id="formula-freq" value="0">
+                </div>
+
+                <div class="preset-buttons">
+                    <button class="preset-btn" data-preset="am">AM</button>
+                    <button class="preset-btn" data-preset="fm">FM</button>
+                    <button class="preset-btn" data-preset="pm">PM</button>
+                    <button class="preset-btn" data-preset="cw">CW</button>
+                    <button class="preset-btn" data-preset="chirp">Chirp</button>
+                    <button class="preset-btn" data-preset="pulse">Pulse</button>
+                </div>
+            </div>
+
+            <!-- Parameters Panel -->
+            <div class="panel">
+                <div class="panel-title">Parameters</div>
+                
+                <div class="param-row">
+                    <span class="param-label" data-tooltip="Carrier frequency: The central frequency of the modulated signal in Hz.">Carrier fc (Hz)</span>
+                    <input type="number" class="param-input" id="param-fc" value="100" step="1">
+                    <input type="range" class="param-slider" id="slider-fc" min="1" max="1000" value="100">
+                </div>
+
+                <div class="param-row">
+                    <span class="param-label" data-tooltip="Modulation frequency: The frequency of the modulating signal in Hz.">Mod Freq fm (Hz)</span>
+                    <input type="number" class="param-input" id="param-fm" value="10" step="0.1">
+                    <input type="range" class="param-slider" id="slider-fm" min="0.1" max="200" value="10" step="0.1">
+                </div>
+
+                <div class="param-row">
+                    <span class="param-label" data-tooltip="Carrier amplitude: Peak amplitude of the unmodulated carrier wave.">Carrier Amp A₀</span>
+                    <input type="number" class="param-input" id="param-A0" value="1" step="0.1">
+                    <input type="range" class="param-slider" id="slider-A0" min="0.1" max="2" value="1" step="0.01">
+                </div>
+
+                <div class="param-row">
+                    <span class="param-label" data-tooltip="Modulation depth for AM: 0 = no modulation, 1 = 100%.&#10;Values >1 cause overmodulation.">Mod Depth Am</span>
+                    <input type="number" class="param-input" id="param-Am" value="0.5" step="0.01">
+                    <input type="range" class="param-slider" id="slider-Am" min="0" max="1" value="0.5" step="0.01">
+                </div>
+
+                <div class="param-row">
+                    <span class="param-label" data-tooltip="Modulation index: Controls FM/PM depth.&#10;For FM, bandwidth ≈ 2(β+1)·fm">Mod Index β</span>
+                    <input type="number" class="param-input" id="param-beta" value="1" step="0.1">
+                    <input type="range" class="param-slider" id="slider-beta" min="0" max="10" value="1" step="0.1">
+                </div>
+
+                <div class="param-row">
+                    <span class="param-label" data-tooltip="Sampling frequency: Samples per second.&#10;Must be > 2·fc (Nyquist criterion).">Sample Rate fs (Hz)</span>
+                    <input type="number" class="param-input" id="param-fs" value="10000" step="100">
+                    <input type="range" class="param-slider" id="slider-fs" min="1000" max="50000" value="10000" step="100">
+                </div>
+            </div>
+
+            <!-- Time Range Panel -->
+            <div class="panel">
+                <div class="panel-title">Time Axis Range</div>
+                <div class="range-row">
+                    <div class="range-group">
+                        <label data-tooltip="Start time in seconds.">Start (s):</label>
+                        <input type="number" id="t-start" value="0" step="0.01">
+                    </div>
+                    <div class="range-group">
+                        <label data-tooltip="End time in seconds.&#10;Longer = higher spectral resolution.">End (s):</label>
+                        <input type="number" id="t-end" value="0.5" step="0.01">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spectrum Settings Panel -->
+            <div class="panel">
+                <div class="panel-title">Spectrum Settings</div>
+                <div class="range-row">
+                    <div class="range-group">
+                        <label data-tooltip="Maximum frequency displayed in spectrum.">Freq Range (Hz):</label>
+                        <input type="number" id="freq-range" value="500" step="10">
+                    </div>
+                    <div class="range-group">
+                        <label data-tooltip="FFT size. Higher = finer resolution.&#10;0 = auto (high resolution).">NFFT:</label>
+                        <input type="number" id="nfft" value="0" step="1024">
+                    </div>
+                </div>
+                <div style="margin-top: 0.5rem;">
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="log-scale">
+                        <span data-tooltip="Display magnitude in decibels (dB).">Log Scale (dB)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Plot Components Panel -->
+            <div class="panel">
+                <div class="panel-title">Plot Components</div>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="show-envelope" checked>
+                    <span data-tooltip="Display the amplitude envelope A(t).">Show Envelope</span>
+                </label>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="show-carrier">
+                    <span data-tooltip="Display the unmodulated carrier wave.">Show Carrier Wave</span>
+                </label>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="show-mod-signal">
+                    <span data-tooltip="Display the modulating signal Am·sin(2π·fm·t).">Show Modulating Signal</span>
+                </label>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="show-phase">
+                    <span data-tooltip="Display phase modulation φ(t), scaled for visibility.">Show Phase Signal (scaled)</span>
+                </label>
+            </div>
+
+            <!-- Update Panel -->
+            <div class="panel">
+                <div class="update-row">
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="auto-update" checked>
+                        <span data-tooltip="Automatically update plots on parameter change.">Auto-update</span>
+                    </label>
+                    <button class="update-btn" id="update-btn">Update Now</button>
+                </div>
+                <div class="info-text" id="info-text">Ready</div>
+            </div>
+        </div>
+
+        <div class="plots">
+            <div class="plot-container">
+                <div class="plot-title">Time Domain Signal</div>
+                <div class="plot-canvas-wrapper">
+                    <canvas class="plot-canvas" id="time-canvas"></canvas>
+                </div>
+                <div class="legend" id="time-legend"></div>
+            </div>
+
+            <div class="plot-container">
+                <div class="plot-title">Frequency Spectrum (High Resolution)</div>
+                <div class="plot-canvas-wrapper">
+                    <canvas class="plot-canvas" id="freq-canvas"></canvas>
+                </div>
+                <div class="legend" id="freq-legend"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // === FFT Implementation (Cooley-Tukey) ===
+        function fft(real, imag) {
+            const n = real.length;
+            if (n <= 1) return;
+
+            // Bit-reversal permutation
+            for (let i = 1, j = 0; i < n; i++) {
+                let bit = n >> 1;
+                for (; j & bit; bit >>= 1) {
+                    j ^= bit;
+                }
+                j ^= bit;
+                if (i < j) {
+                    [real[i], real[j]] = [real[j], real[i]];
+                    [imag[i], imag[j]] = [imag[j], imag[i]];
+                }
+            }
+
+            // Cooley-Tukey FFT
+            for (let len = 2; len <= n; len <<= 1) {
+                const halfLen = len >> 1;
+                const angle = -2 * Math.PI / len;
+                const wReal = Math.cos(angle);
+                const wImag = Math.sin(angle);
+                
+                for (let i = 0; i < n; i += len) {
+                    let curReal = 1, curImag = 0;
+                    for (let j = 0; j < halfLen; j++) {
+                        const u = i + j;
+                        const v = i + j + halfLen;
+                        const tReal = curReal * real[v] - curImag * imag[v];
+                        const tImag = curReal * imag[v] + curImag * real[v];
+                        real[v] = real[u] - tReal;
+                        imag[v] = imag[u] - tImag;
+                        real[u] += tReal;
+                        imag[u] += tImag;
+                        const nextReal = curReal * wReal - curImag * wImag;
+                        curImag = curReal * wImag + curImag * wReal;
+                        curReal = nextReal;
+                    }
+                }
+            }
+        }
+
+        function nextPowerOf2(n) {
+            return Math.pow(2, Math.ceil(Math.log2(n)));
+        }
+
+        // === Blackman Window ===
+        function blackmanWindow(n) {
+            const window = new Float64Array(n);
+            const a0 = 0.42, a1 = 0.5, a2 = 0.08;
+            for (let i = 0; i < n; i++) {
+                window[i] = a0 - a1 * Math.cos(2 * Math.PI * i / (n - 1)) 
+                              + a2 * Math.cos(4 * Math.PI * i / (n - 1));
+
+            }
+            return window;
+        }
+
+        // === DOM Elements ===
+        const elements = {
+            formulaAmp: document.getElementById('formula-amp'),
+            formulaPhase: document.getElementById('formula-phase'),
+            formulaFreq: document.getElementById('formula-freq'),
+            tStart: document.getElementById('t-start'),
+            tEnd: document.getElementById('t-end'),
+            freqRange: document.getElementById('freq-range'),
+            nfft: document.getElementById('nfft'),
+            logScale: document.getElementById('log-scale'),
+            showEnvelope: document.getElementById('show-envelope'),
+            showCarrier: document.getElementById('show-carrier'),
+            showModSignal: document.getElementById('show-mod-signal'),
+            showPhase: document.getElementById('show-phase'),
+            autoUpdate: document.getElementById('auto-update'),
+            updateBtn: document.getElementById('update-btn'),
+            infoText: document.getElementById('info-text'),
+            timeCanvas: document.getElementById('time-canvas'),
+            freqCanvas: document.getElementById('freq-canvas'),
+            timeLegend: document.getElementById('time-legend'),
+            freqLegend: document.getElementById('freq-legend'),
+            tooltip: document.getElementById('tooltip')
+        };
+
+        const params = ['fc', 'fm', 'A0', 'Am', 'beta', 'fs'];
+        const paramInputs = {};
+        const paramSliders = {};
+
+        params.forEach(p => {
+            paramInputs[p] = document.getElementById(`param-${p}`);
+            paramSliders[p] = document.getElementById(`slider-${p}`);
+        });
+
+        // === Presets ===
+        const presets = {
+            am: {
+                amp: 'A0 * (1 + Am * Math.sin(2*Math.PI*fm*t))',
+                phase: '0',
+                freq: '0'
+            },
+            fm: {
+                amp: 'A0',
+                phase: '0',
+                freq: 'beta * fm * Math.sin(2*Math.PI*fm*t)'
+            },
+            pm: {
+                amp: 'A0',
+                phase: 'beta * Math.sin(2*Math.PI*fm*t)',
+                freq: '0'
+            },
+            cw: {
+                amp: 'A0',
+                phase: '0',
+                freq: '0'
+            },
+            chirp: {
+                amp: 'A0',
+                phase: '0',
+                freq: 'beta * 100 * t'
+            },
+            pulse: {
+                amp: 'A0 * Math.exp(-Math.pow((t-0.25)/0.05, 2))',
+                phase: '0',
+                freq: '0'
+            }
+        };
+
+        // === State ===
+        let updateTimeout = null;
+        let currentData = null;
+
+        // === Formula Evaluation ===
+        function evalFormula(formula, t, params) {
+            try {
+                const func = new Function('t', 'fc', 'fs', 'fm', 'Am', 'A0', 'beta', 'Math',
+                    `"use strict"; return ${formula};`);
+                
+                if (Array.isArray(t)) {
+                    return t.map(ti => {
+                        const result = func(ti, params.fc, params.fs, params.fm, 
+                                           params.Am, params.A0, params.beta, Math);
+                        return isFinite(result) ? result : 0;
+                    });
+                } else {
+                    const result = func(t, params.fc, params.fs, params.fm, 
+                                       params.Am, params.A0, params.beta, Math);
+                    return isFinite(result) ? result : 0;
+                }
+            } catch (e) {
+                console.error('Formula error:', e);
+                return Array.isArray(t) ? t.map(() => 0) : 0;
+            }
+        }
+
+        // === Get Current Parameters ===
+        function getParams() {
+            return {
+                fc: parseFloat(paramInputs.fc.value) || 100,
+                fm: parseFloat(paramInputs.fm.value) || 10,
+                A0: parseFloat(paramInputs.A0.value) || 1,
+                Am: parseFloat(paramInputs.Am.value) || 0.5,
+                beta: parseFloat(paramInputs.beta.value) || 1,
+                fs: parseFloat(paramInputs.fs.value) || 10000
+            };
+        }
+
+        // === Generate Signal ===
+        function generateSignal() {
+            const p = getParams();
+            const tStart = parseFloat(elements.tStart.value) || 0;
+            const tEnd = parseFloat(elements.tEnd.value) || 0.5;
+            const fs = p.fs;
+
+            const numSamples = Math.floor((tEnd - tStart) * fs);
+            if (numSamples <= 0 || numSamples > 1000000) {
+                return null;
+            }
+
+            const t = new Float64Array(numSamples);
+            for (let i = 0; i < numSamples; i++) {
+                t[i] = tStart + i / fs;
+            }
+
+            // Evaluate formulas
+            let amplitude = evalFormula(elements.formulaAmp.value, Array.from(t), p);
+            let phase = evalFormula(elements.formulaPhase.value, Array.from(t), p);
+            let freqOffset = evalFormula(elements.formulaFreq.value, Array.from(t), p);
+
+            // Handle scalar results
+            if (!Array.isArray(amplitude)) amplitude = t.map(() => amplitude);
+            if (!Array.isArray(phase)) phase = t.map(() => phase);
+            if (!Array.isArray(freqOffset)) freqOffset = t.map(() => freqOffset);
+
+            // Generate signal with FM integration
+            const signal = new Float64Array(numSamples);
+            let freqPhase = 0;
+            
+            for (let i = 0; i < numSamples; i++) {
+                if (freqOffset[i] !== 0) {
+                    freqPhase += 2 * Math.PI * freqOffset[i] / fs;
+                }
+                signal[i] = amplitude[i] * Math.cos(2 * Math.PI * p.fc * t[i] + phase[i] + freqPhase);
+            }
+
+            // Carrier and modulating signal
+            const carrier = t.map(ti => p.A0 * Math.cos(2 * Math.PI * p.fc * ti));
+            const modSignal = t.map(ti => p.Am * Math.sin(2 * Math.PI * p.fm * ti));
+
+            return { t, signal, amplitude, phase, carrier, modSignal, params: p, tStart, tEnd };
+        }
+
+        // === Compute Spectrum ===
+        function computeSpectrum(t, signal, fs) {
+            const n = signal.length;
+            let nfft = parseInt(elements.nfft.value) || 0;
+            
+            if (nfft <= 0) {
+                nfft = Math.max(nextPowerOf2(n) * 8, 65536);
+            } else {
+                nfft = nextPowerOf2(nfft);
+            }
+
+            // Apply Blackman window
+            const window = blackmanWindow(n);
+            let windowSum = 0;
+            for (let i = 0; i < n; i++) windowSum += window[i];
+
+            // Prepare FFT arrays (zero-padded)
+            const real = new Float64Array(nfft);
+            const imag = new Float64Array(nfft);
+
+            for (let i = 0; i < n; i++) {
+                real[i] = signal[i] * window[i];
+            }
+
+            // Compute FFT
+            fft(real, imag);
+
+            // Compute magnitude (positive frequencies only)
+            const numPositive = Math.floor(nfft / 2) + 1;
+            const freqs = new Float64Array(numPositive);
+            const magnitude = new Float64Array(numPositive);
+
+            for (let i = 0; i < numPositive; i++) {
+                freqs[i] = i * fs / nfft;
+                magnitude[i] = 2 * Math.sqrt(real[i] * real[i] + imag[i] * imag[i]) / windowSum;
+            }
+
+            return { freqs, magnitude, nfft };
+        }
+
+        // === Canvas Plotting ===
+        function setupCanvas(canvas) {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            return { ctx, width: rect.width, height: rect.height };
+        }
+
+        function plotTimeDomain(data) {
+            const { ctx, width, height } = setupCanvas(elements.timeCanvas);
+            const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+            const plotWidth = width - margin.left - margin.right;
+            const plotHeight = height - margin.top - margin.bottom;
+
+            // Clear
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, width, height);
+
+            if (!data) return;
+
+            const { t, signal, amplitude, phase, carrier, modSignal, tStart, tEnd, params } = data;
+
+            // Find data range
+            let yMin = -params.A0 * 1.5, yMax = params.A0 * 1.5;
+            
+            // Scale functions
+            const scaleX = (val) => margin.left + (val - tStart) / (tEnd - tStart) * plotWidth;
+            const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
+
+            // Draw grid
+            ctx.strokeStyle = '#0f3460';
+            ctx.lineWidth = 0.5;
+            
+            // Y grid lines
+            const yTicks = 5;
+            for (let i = 0; i <= yTicks; i++) {
+                const y = margin.top + (i / yTicks) * plotHeight;
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(width - margin.right, y);
+                ctx.stroke();
+            }
+
+            // X grid lines
+            const xTicks = 8;
+            for (let i = 0; i <= xTicks; i++) {
+                const x = margin.left + (i / xTicks) * plotWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, height - margin.bottom);
+                ctx.stroke();
+            }
+
+            // Draw axes
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, height - margin.bottom);
+            ctx.lineTo(width - margin.right, height - margin.bottom);
+            ctx.stroke();
+
+            // Axis labels
+            ctx.fillStyle = '#888';
+            ctx.font = '11px system-ui';
+            ctx.textAlign = 'center';
+            
+            // X-axis labels
+            for (let i = 0; i <= xTicks; i++) {
+                const tVal = tStart + (i / xTicks) * (tEnd - tStart);
+                const x = margin.left + (i / xTicks) * plotWidth;
+                ctx.fillText((tVal * 1000).toFixed(1), x, height - margin.bottom + 15);
+            }
+            ctx.fillText('Time (ms)', margin.left + plotWidth / 2, height - 5);
+
+            // Y-axis labels
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= yTicks; i++) {
+                const yVal = yMax - (i / yTicks) * (yMax - yMin);
+                const y = margin.top + (i / yTicks) * plotHeight;
+                ctx.fillText(yVal.toFixed(2), margin.left - 5, y + 4);
+            }
+            ctx.save();
+            ctx.translate(15, margin.top + plotHeight / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Amplitude', 0, 0);
+            ctx.restore();
+
+            // Plot helper function
+            function plotLine(data, color, lineWidth = 1) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth;
+                ctx.beginPath();
+                let started = false;
+                for (let i = 0; i < t.length; i++) {
+                    const x = scaleX(t[i]);
+                    const y = scaleY(data[i]);
+                    if (x >= margin.left && x <= width - margin.right) {
+                        if (!started) {
+                            ctx.moveTo(x, y);
+                            started = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                }
+                ctx.stroke();
+            }
+
+            // Plot components
+            const legendItems = [];
+
+            if (elements.showCarrier.checked) {
+                plotLine(carrier, '#22c55e', 0.8);
+                legendItems.push({ color: '#22c55e', label: 'Carrier' });
+            }
+
+            if (elements.showModSignal.checked) {
+                plotLine(modSignal, '#a855f7', 1);
+                legendItems.push({ color: '#a855f7', label: 'Mod Signal' });
+            }
+
+            if (elements.showPhase.checked && phase.some(p => p !== 0)) {
+                const maxPhase = Math.max(...phase.map(Math.abs)) || 1;
+                const phaseScaled = phase.map(p => p / maxPhase * params.A0);
+                plotLine(phaseScaled, '#06b6d4', 1);
+                legendItems.push({ color: '#06b6d4', label: 'Phase (scaled)' });
+            }
+
+            // Signal
+            plotLine(signal, '#3b82f6', 1);
+            legendItems.push({ color: '#3b82f6', label: 'Signal' });
+
+            // Envelope
+            if (elements.showEnvelope.checked) {
+                plotLine(amplitude, '#ef4444', 1.2);
+                plotLine(amplitude.map(a => -a), '#ef4444', 1.2);
+                legendItems.push({ color: '#ef4444', label: 'Envelope' });
+            }
+
+            // Update legend
+            elements.timeLegend.innerHTML = legendItems.map(item => 
+                `<div class="legend-item">
+                    <div class="legend-color" style="background: ${item.color}"></div>
+                    <span>${item.label}</span>
+                </div>`
+            ).join('');
+        }
+
+        function plotFrequencyDomain(data, spectrum) {
+            const { ctx, width, height } = setupCanvas(elements.freqCanvas);
+            const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+            const plotWidth = width - margin.left - margin.right;
+            const plotHeight = height - margin.top - margin.bottom;
+
+            // Clear
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, width, height);
+
+            if (!data || !spectrum) return;
+
+            const { params } = data;
+            const { freqs, magnitude } = spectrum;
+            const maxFreq = parseFloat(elements.freqRange.value) || 500;
+            const logScale = elements.logScale.checked;
+
+            // Filter data to frequency range
+            const indices = [];
+            const filteredFreqs = [];
+            const filteredMag = [];
+            
+            for (let i = 0; i < freqs.length; i++) {
+                if (freqs[i] <= maxFreq) {
+                    indices.push(i);
+                    filteredFreqs.push(freqs[i]);
+                    filteredMag.push(logScale ? 20 * Math.log10(magnitude[i] + 1e-12) : magnitude[i]);
+                }
+            }
+
+            // Find Y range
+            let yMin, yMax;
+            if (logScale) {
+                const validMag = filteredMag.filter(m => m > -100);
+                yMin = validMag.length > 0 ? Math.min(...validMag) - 10 : -100;
+                yMax = Math.max(...filteredMag) + 5;
+            } else {
+                yMin = 0;
+                yMax = Math.max(...filteredMag) * 1.1 || 1;
+            }
+
+            // Scale functions
+            const scaleX = (val) => margin.left + (val / maxFreq) * plotWidth;
+            const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
+
+            // Draw grid
+            ctx.strokeStyle = '#0f3460';
+            ctx.lineWidth = 0.5;
+            
+            const yTicks = 5;
+            for (let i = 0; i <= yTicks; i++) {
+                const y = margin.top + (i / yTicks) * plotHeight;
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(width - margin.right, y);
+                ctx.stroke();
+            }
+
+            const xTicks = 8;
+            for (let i = 0; i <= xTicks; i++) {
+                const x = margin.left + (i / xTicks) * plotWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, height - margin.bottom);
+                ctx.stroke();
+            }
+
+            // Draw axes
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, height - margin.bottom);
+            ctx.lineTo(width - margin.right, height - margin.bottom);
+            ctx.stroke();
+
+            // Axis labels
+            ctx.fillStyle = '#888';
+            ctx.font = '11px system-ui';
+            ctx.textAlign = 'center';
+            
+            for (let i = 0; i <= xTicks; i++) {
+                const fVal = (i / xTicks) * maxFreq;
+                const x = margin.left + (i / xTicks) * plotWidth;
+                ctx.fillText(fVal.toFixed(0), x, height - margin.bottom + 15);
+            }
+            ctx.fillText('Frequency (Hz)', margin.left + plotWidth / 2, height - 5);
+
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= yTicks; i++) {
+                const yVal = yMax - (i / yTicks) * (yMax - yMin);
+                const y = margin.top + (i / yTicks) * plotHeight;
+                ctx.fillText(logScale ? yVal.toFixed(0) : yVal.toFixed(2), margin.left - 5, y + 4);
+            }
+            ctx.save();
+            ctx.translate(15, margin.top + plotHeight / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText(logScale ? 'Magnitude (dB)' : 'Magnitude', 0, 0);
+            ctx.restore();
+
+            // Draw carrier frequency marker
+            if (params.fc <= maxFreq) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 3]);
+                ctx.beginPath();
+                ctx.moveTo(scaleX(params.fc), margin.top);
+                ctx.lineTo(scaleX(params.fc), height - margin.bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Draw sideband markers
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 0.8;
+            ctx.setLineDash([3, 3]);
+            if (params.fc - params.fm > 0 && params.fc - params.fm <= maxFreq) {
+                ctx.beginPath();
+                ctx.moveTo(scaleX(params.fc - params.fm), margin.top);
+                ctx.lineTo(scaleX(params.fc - params.fm), height - margin.bottom);
+                ctx.stroke();
+            }
+            if (params.fc + params.fm <= maxFreq) {
+                ctx.beginPath();
+                ctx.moveTo(scaleX(params.fc + params.fm), margin.top);
+                ctx.lineTo(scaleX(params.fc + params.fm), height - margin.bottom);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+
+            // Plot spectrum
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < filteredFreqs.length; i++) {
+                const x = scaleX(filteredFreqs[i]);
+                const y = Math.max(margin.top, Math.min(height - margin.bottom, scaleY(filteredMag[i])));
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            // Update legend
+            elements.freqLegend.innerHTML = `
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3b82f6"></div>
+                    <span>Spectrum</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ef4444"></div>
+                    <span>fc = ${params.fc} Hz</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #22c55e"></div>
+                    <span>fc ± fm</span>
+                </div>
+            `;
+        }
+
+        // === Update Plots ===
+        function updatePlots() {
+            const startTime = performance.now();
+            
+            try {
+                const data = generateSignal();
+                currentData = data;
+                
+                if (!data) {
+                    elements.infoText.textContent = 'Error: Invalid parameters';
+                    return;
+                }
+
+                const spectrum = computeSpectrum(data.t, data.signal, data.params.fs);
+                
+                plotTimeDomain(data);
+                plotFrequencyDomain(data, spectrum);
+
+                const elapsed = (performance.now() - startTime).toFixed(1);
+                const freqRes = (data.params.fs / spectrum.nfft).toFixed(4);
+                elements.infoText.textContent = 
+                    `Samples: ${data.t.length.toLocaleString()} | ` +
+                    `NFFT: ${spectrum.nfft.toLocaleString()} | ` +
+                    `Freq res: ${freqRes} Hz | ` +
+                    `Render: ${elapsed}ms`;
+                    
+            } catch (e) {
+                console.error('Update error:', e);
+                elements.infoText.textContent = `Error: ${e.message}`;
+            }
+        }
+
+        function scheduleUpdate() {
+            if (!elements.autoUpdate.checked) return;
+            
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+            updateTimeout = setTimeout(updatePlots, 150);
+        }
+
+        // === Event Listeners ===
+        
+        // Parameter sliders and inputs
+        params.forEach(p => {
+            paramSliders[p].addEventListener('input', () => {
+                paramInputs[p].value = parseFloat(paramSliders[p].value).toPrecision(3);
+                scheduleUpdate();
+            });
+            
+            paramInputs[p].addEventListener('input', () => {
+                const val = parseFloat(paramInputs[p].value);
+                if (isFinite(val)) {
+                    paramSliders[p].value = val;
+                }
+                scheduleUpdate();
+            });
+        });
+
+        // Formula inputs
+        [elements.formulaAmp, elements.formulaPhase, elements.formulaFreq,
+         elements.tStart, elements.tEnd, elements.freqRange, elements.nfft].forEach(el => {
+            el.addEventListener('input', scheduleUpdate);
+        });
+
+        // Checkboxes
+        [elements.logScale, elements.showEnvelope, elements.showCarrier,
+         elements.showModSignal, elements.showPhase].forEach(el => {
+            el.addEventListener('change', updatePlots);
+        });
+
+        // Presets
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const preset = presets[btn.dataset.preset];
+                if (preset) {
+                    elements.formulaAmp.value = preset.amp;
+                    elements.formulaPhase.value = preset.phase;
+                    elements.formulaFreq.value = preset.freq;
+                    updatePlots();
+                }
+            });
+        });
+
+        // Update button
+        elements.updateBtn.addEventListener('click', updatePlots);
+
+        // Tooltips
+        document.querySelectorAll('[data-tooltip]').forEach(el => {
+            el.addEventListener('mouseenter', (e) => {
+                const tooltip = elements.tooltip;
+                tooltip.textContent = el.dataset.tooltip;
+                tooltip.style.display = 'block';
+                
+                const rect = el.getBoundingClientRect();
+                tooltip.style.left = (rect.left + 20) + 'px';
+                tooltip.style.top = (rect.bottom + 5) + 'px';
+                
+                // Keep tooltip on screen
+                const tooltipRect = tooltip.getBoundingClientRect();
+                if (tooltipRect.right > window.innerWidth) {
+                    tooltip.style.left = (window.innerWidth - tooltipRect.width - 10) + 'px';
+                }
+            });
+            
+            el.addEventListener('mouseleave', () => {
+                elements.tooltip.style.display = 'none';
+            });
+        });
+
+        // Window resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(updatePlots, 200);
+        });
+
+        // Initial render
+        updatePlots();
+    })();
+    </script>
+</body>
+</html>
+HXUiSvb420SljQtBNn1gqGL2ysAD7FE
