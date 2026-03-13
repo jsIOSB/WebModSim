@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signal Modulation Visualizer</title>
+    <title>Optical Modulation & Coherence Analyzer</title>
     <style>
         * {
 
@@ -27,12 +27,12 @@
         }
 
         .controls {
-            width: 420px;
-            min-width: 420px;
+            width: 440px;
+            min-width: 440px;
             display: flex;
             flex-direction: column;
             gap: 6px;
-            overflow: hidden;
+            overflow-y: auto;
         }
 
         .panel {
@@ -94,17 +94,19 @@
             display: flex;
             gap: 4px;
             margin-top: 6px;
+            flex-wrap: wrap;
         }
 
         .preset-btn {
             flex: 1;
+            min-width: 60px;
             padding: 4px 0;
             border: 1px solid #0f3460;
             border-radius: 4px;
             background: #1a1a2e;
             color: #eee;
             cursor: pointer;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             transition: all 0.2s;
         }
 
@@ -125,15 +127,15 @@
         }
 
         .param-label {
-            width: 110px;
-            min-width: 110px;
+            width: 130px;
+            min-width: 130px;
             font-size: 0.75rem;
             color: #aaa;
             cursor: help;
         }
 
         .param-input {
-            width: 110px;
+            width: 70px;
             padding: 3px 4px;
             border: 1px solid #0f3460;
             border-radius: 4px;
@@ -177,6 +179,12 @@
             border: none;
         }
 
+        .param-secondary {
+            font-size: 0.65rem;
+            color: #666;
+            margin-left: 4px;
+        }
+
         .settings-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -195,7 +203,7 @@
         }
 
         .setting-group input[type="number"] {
-            width: 90px;
+            width: 70px;
             padding: 3px 4px;
             border: 1px solid #0f3460;
             border-radius: 4px;
@@ -250,8 +258,21 @@
 
         .info-text {
             font-size: 0.65rem;
-            color: #777;
+            color: #555;
             flex: 1;
+        }
+
+        .coherence-info {
+            background: #0f3460;
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin-top: 6px;
+            font-size: 0.7rem;
+        }
+
+        .coherence-info .value {
+            color: #e94560;
+            font-weight: 600;
         }
 
         .plots {
@@ -317,6 +338,34 @@
             left: 0;
             width: 100%;
             height: 100%;
+            cursor: grab;
+        }
+
+        .plot-canvas:active {
+            cursor: grabbing;
+        }
+
+        .plot-controls {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            display: flex;
+            gap: 2px;
+        }
+
+        .plot-control-btn {
+            background: rgba(15, 52, 96, 0.8);
+            border: 1px solid #0f3460;
+            color: #aaa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            cursor: pointer;
+        }
+
+        .plot-control-btn:hover {
+            background: #0f3460;
+            color: #eee;
         }
 
         .tooltip {
@@ -326,19 +375,13 @@
             padding: 6px 8px;
             border-radius: 4px;
             font-size: 0.7rem;
-            max-width: 220px;
+            max-width: 250px;
             z-index: 1000;
             pointer-events: none;
             border: 1px solid #e94560;
             line-height: 1.3;
             display: none;
             white-space: pre-line;
-        }
-
-        .small-text {
-            font-size: 0.7rem;
-            color: #aaa;
-            margin-top: 4px;
         }
     </style>
 </head>
@@ -347,7 +390,7 @@
         <!-- Formulas Panel -->
         <div class="panel">
             <div class="panel-title">Modulation Formulas</div>
-            <div class="formula-help">Variables: t, fc, fs, fm, Am, A0, beta, Math.*</div>
+            <div class="formula-help">Variables: t (ps), fc, fm (THz), Am, A0, beta, Math.*</div>
             
             <div class="formula-row">
                 <label data-tooltip="Time-varying amplitude envelope.&#10;For AM: A0*(1 + Am*sin(2π·fm·t))">A(t):</label>
@@ -355,12 +398,12 @@
             </div>
             
             <div class="formula-row">
-                <label data-tooltip="Phase modulation term in radians (slow phase).&#10;For PM: beta*sin(2π·fm·t)">φ(t) [rad]:</label>
+                <label data-tooltip="Phase modulation term in radians.&#10;For PM: beta*sin(2π·fm·t)">φ(t) [rad]:</label>
                 <input type="text" id="formula-phase" value="0">
             </div>
             
             <div class="formula-row">
-                <label data-tooltip="Instantaneous frequency deviation (baseband).&#10;For FM: beta*fm*sin(2π·fm·t)">Δf(t) [Hz]:</label>
+                <label data-tooltip="Instantaneous frequency deviation (THz).&#10;For FM: beta*fm*sin(2π·fm·t)">Δf(t) [THz]:</label>
                 <input type="text" id="formula-freq" value="0">
             </div>
 
@@ -371,29 +414,8 @@
                 <button class="preset-btn" data-preset="cw">CW</button>
                 <button class="preset-btn" data-preset="chirp">Chirp</button>
                 <button class="preset-btn" data-preset="pulse">Pulse</button>
+                <button class="preset-btn" data-preset="noise">+Noise</button>
             </div>
-        </div>
-        
-        <div class="formula-row" style="margin-top: 8px;">
-            <label data-tooltip="Complete signal formula.&#10;Editing this overrides A(t), φ(t), Δf(t).&#10;By default fc is not included here to avoid THz sampling issues.">Full s(t):</label>
-        </div>
-        <textarea id="formula-full" rows="2" style="
-            width: 100%;
-            padding: 4px 6px;
-            border: 1px solid #0f3460;
-            border-radius: 4px;
-            background: #1a1a2e;
-            color: #eee;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 0.7rem;
-            resize: vertical;
-            min-height: 36px;
-        "></textarea>
-        <div style="display: flex, gap: 4px; margin-top: 4px;">
-            <label class="checkbox-group">
-                <input type="checkbox" id="use-full-formula">
-                <span data-tooltip="Use the full formula directly instead of A(t)·cos(φeff(t)).">Use Full Formula</span>
-            </label>
         </div>
 
         <!-- Parameters Panel -->
@@ -401,19 +423,20 @@
             <div class="panel-title">Parameters</div>
             
             <div class="param-row">
-                <span class="param-label" data-tooltip="Optical carrier frequency in Hz (used for λ & coherence length).&#10;For λ≈2µm: fc≈1.5×10¹⁴ Hz.&#10;Not included by default in the simulated s(t) to avoid THz sampling issues.">Carrier fc (Hz)</span>
-                <input type="number" class="param-input" id="param-fc" value="1.5e14" step="1e12">
-                <input type="range" class="param-slider" id="slider-fc" min="1e12" max="3e14" value="1.5e14" step="1e12">
+                <span class="param-label" data-tooltip="Carrier frequency in THz.&#10;2 µm ≈ 150 THz&#10;1.55 µm ≈ 193 THz&#10;1 µm ≈ 300 THz">Carrier fc (THz)</span>
+                <input type="number" class="param-input" id="param-fc" value="149.896" step="0.1">
+                <input type="range" class="param-slider" id="slider-fc" min="100" max="300" value="149.896" step="0.001">
+                <span class="param-secondary" id="fc-wavelength">λ=2.000µm</span>
             </div>
 
             <div class="param-row">
-                <span class="param-label" data-tooltip="Modulation frequency in Hz.&#10;Realistic example: 5 GHz = 5e9 Hz.">Mod Freq fm (Hz)</span>
-                <input type="number" class="param-input" id="param-fm" value="5e9" step="1e8">
-                <input type="range" class="param-slider" id="slider-fm" min="1e6" max="2e10" value="5e9" step="1e6">
+                <span class="param-label" data-tooltip="Modulation frequency in GHz.&#10;Typical RF modulation: 1-40 GHz">Mod Freq fm (GHz)</span>
+                <input type="number" class="param-input" id="param-fm" value="5" step="0.1">
+                <input type="range" class="param-slider" id="slider-fm" min="0.1" max="50" value="5" step="0.1">
             </div>
 
             <div class="param-row">
-                <span class="param-label" data-tooltip="Carrier amplitude.&#10;Peak amplitude of unmodulated field/envelope.">Carrier Amp A₀</span>
+                <span class="param-label" data-tooltip="Carrier amplitude (a.u.).&#10;Peak amplitude of unmodulated carrier.">Carrier Amp A₀</span>
                 <input type="number" class="param-input" id="param-A0" value="1" step="0.1">
                 <input type="range" class="param-slider" id="slider-A0" min="0.1" max="2" value="1" step="0.01">
             </div>
@@ -431,34 +454,30 @@
             </div>
 
             <div class="param-row">
-                <span class="param-label" data-tooltip="Sampling rate in Hz.&#10;Controls time resolution and FFT span.&#10;For fm=5 GHz, fs≈1e11 Hz gives good resolution over a few ns.">Sample Rate fs</span>
-                <input type="number" class="param-input" id="param-fs" value="1e11" step="1e9">
-                <input type="range" class="param-slider" id="slider-fs" min="1e9" max="5e11" value="1e11" step="1e9">
-            </div>
-
-            <div class="small-text" id="lambda-display">
-                λ ≈ — µm
+                <span class="param-label" data-tooltip="Sampling rate in THz.&#10;Must satisfy Nyquist: fs > 2·fc&#10;400 THz suitable for fc=150 THz">Sample Rate fs (THz)</span>
+                <input type="number" class="param-input" id="param-fs" value="400" step="10">
+                <input type="range" class="param-slider" id="slider-fs" min="100" max="800" value="400" step="10">
             </div>
         </div>
 
         <!-- Settings Panel -->
         <div class="panel">
-            <div class="panel-title">Display Settings</div>
+            <div class="panel-title">Time & Display Settings</div>
             <div class="settings-grid">
                 <div class="setting-group">
-                    <label data-tooltip="Start time in seconds.&#10;Plotted as ns on the axis.">t Start (s):</label>
-                    <input type="number" id="t-start" value="0" step="1e-10">
+                    <label data-tooltip="Start time in picoseconds.">t Start (ps):</label>
+                    <input type="number" id="t-start" value="0" step="1">
                 </div>
                 <div class="setting-group">
-                    <label data-tooltip="End time in seconds.&#10;Plotted as ns on the axis.&#10;Example: 5e-9 = 5 ns.">t End (s):</label>
-                    <input type="number" id="t-end" value="5e-9" step="1e-9">
+                    <label data-tooltip="End time in picoseconds.&#10;Longer = better freq resolution.&#10;200ps gives ~5GHz resolution.">t End (ps):</label>
+                    <input type="number" id="t-end" value="200" step="10">
                 </div>
                 <div class="setting-group">
-                    <label data-tooltip="Max baseband frequency in Hz displayed in the spectrum plot.&#10;Plotted as GHz on the axis.">Freq Max (Hz):</label>
-                    <input type="number" id="freq-range" value="2e10" step="1e9">
+                    <label data-tooltip="Max frequency shown in spectrum (THz).">Freq Max (THz):</label>
+                    <input type="number" id="freq-range" value="160" step="1">
                 </div>
                 <div class="setting-group">
-                    <label data-tooltip="FFT size. 0 = auto high-res with zero padding.">NFFT:</label>
+                    <label data-tooltip="FFT size. 0 = auto (8× samples).">NFFT:</label>
                     <input type="number" id="nfft" value="0" step="1024">
                 </div>
             </div>
@@ -470,7 +489,7 @@
             <div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #0f3460;">
                 <label class="checkbox-group">
                     <input type="checkbox" id="show-power">
-                    <span data-tooltip="Plot |E(t)|² (optical power/intensity).&#10;Coherence can be evaluated on field or on intensity.&#10;This also controls which signal is FFTed and used for g₁(τ)." style="font-weight: 600; color: #e94560;">Show Power |E|²</span>
+                    <span data-tooltip="Plot |E(t)|² (optical intensity).&#10;Photodiodes measure power, not field." style="font-weight: 600; color: #e94560;">Show Power |E|²</span>
                 </label>
             </div>
             <div class="checkbox-row">
@@ -480,20 +499,32 @@
                 </label>
                 <label class="checkbox-group">
                     <input type="checkbox" id="show-carrier">
-                    <span data-tooltip="Show a notional unmodulated carrier cos(2π·fc·t).&#10;For realistic optical fc this will alias unless fs is extremely high.">Carrier</span>
+                    <span data-tooltip="Show unmodulated carrier (very fast oscillation).">Carrier</span>
                 </label>
                 <label class="checkbox-group">
                     <input type="checkbox" id="show-mod-signal">
-                    <span data-tooltip="Show modulating signal at fm.">Mod Signal</span>
-                </label>
-                <label class="checkbox-group">
-                    <input type="checkbox" id="show-phase">
-                    <span data-tooltip="Show phase φ(t), scaled.">Phase</span>
+                    <span data-tooltip="Show modulating signal.">Mod Signal</span>
                 </label>
                 <label class="checkbox-group">
                     <input type="checkbox" id="log-scale">
                     <span data-tooltip="Spectrum in dB scale.">Log (dB)</span>
                 </label>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="show-g1-envelope" checked>
+                    <span data-tooltip="Show |g₁(τ)| envelope.">|g₁| Envelope</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Coherence Info Panel -->
+        <div class="panel">
+            <div class="panel-title">Coherence Properties</div>
+            <div class="coherence-info" id="coherence-info">
+                <div>Coherence time τ<sub>c</sub>: <span class="value" id="coh-time">--</span></div>
+                <div>Coherence length L<sub>c</sub>: <span class="value" id="coh-length">--</span></div>
+                <div style="margin-top:4px; font-size:0.65rem; color:#666;">
+                    τ<sub>c</sub> defined as HWHM of |g₁(τ)| or where |g₁|=1/e
+                </div>
             </div>
         </div>
 
@@ -507,9 +538,12 @@
                 <span class="info-text" id="info-text">Ready</span>
                 <button class="update-btn" id="update-btn">Update</button>
             </div>
-            <div class="small-text">
-                Mouse: drag = pan, wheel = zoom (all plots). Time axis in ns, frequency axis in GHz.
-            </div>
+        </div>
+
+        <!-- Help Panel -->
+        <div class="panel" style="font-size:0.65rem; color:#666;">
+            <strong>Pan/Zoom:</strong> Scroll to zoom, drag to pan, double-click to reset.<br>
+            <strong>Units:</strong> Time in ps, frequency in THz. c = 299.792 µm·THz.
         </div>
     </div>
 
@@ -521,6 +555,9 @@
             </div>
             <div class="plot-canvas-wrapper">
                 <canvas class="plot-canvas" id="time-canvas"></canvas>
+                <div class="plot-controls">
+                    <button class="plot-control-btn" data-reset="time">Reset</button>
+                </div>
             </div>
         </div>
 
@@ -531,16 +568,22 @@
             </div>
             <div class="plot-canvas-wrapper">
                 <canvas class="plot-canvas" id="freq-canvas"></canvas>
+                <div class="plot-controls">
+                    <button class="plot-control-btn" data-reset="freq">Reset</button>
+                </div>
             </div>
         </div>
 
         <div class="plot-container">
             <div class="plot-header">
-                <div class="plot-title">Coherence g₁(τ)</div>
-                <div class="legend" id="coh-legend"></div>
+                <div class="plot-title">First-Order Correlation g₁(τ)</div>
+                <div class="legend" id="g1-legend"></div>
             </div>
             <div class="plot-canvas-wrapper">
-                <canvas class="plot-canvas" id="coh-canvas"></canvas>
+                <canvas class="plot-canvas" id="g1-canvas"></canvas>
+                <div class="plot-controls">
+                    <button class="plot-control-btn" data-reset="g1">Reset</button>
+                </div>
             </div>
         </div>
     </div>
@@ -548,17 +591,84 @@
     <div class="tooltip" id="tooltip"></div>
 
     <script>
+    /**
+     * ============================================================================
+     * OPTICAL MODULATION & COHERENCE ANALYZER
+     * ============================================================================
+     * 
+     * This application simulates optical field modulation and analyzes coherence
+     * properties through the first-order correlation function g₁(τ).
+     * 
+     * PHYSICAL CONTEXT:
+     * -----------------
+     * - Simulates electric field E(t) of modulated optical signals
+     * - Default: 2 µm wavelength (fc ≈ 150 THz) with 5 GHz modulation
+     * - Computes power spectrum via FFT
+     * - Calculates g₁(τ) to determine coherence time and length
+     * 
+     * UNITS:
+     * ------
+     * - Time: picoseconds (ps)
+     * - Frequency: terahertz (THz), with GHz for modulation frequency input
+     * - Wavelength: micrometers (µm)
+     * - Speed of light: c = 299.792458 µm/ps = 299.792458 µm·THz
+     * 
+     * KEY EQUATIONS:
+     * --------------
+     * Signal: E(t) = A(t) · cos(2π·fc·t + φ(t) + ∫Δf(t)dt)
+     * 
+     * g₁(τ) = <E*(t)·E(t+τ)> / <|E(t)|²>
+     *       = Normalized autocorrelation of E(t)
+     *       = F⁻¹{|F{E(t)}|²} / |E|² (Wiener-Khinchin theorem)
+     * 
+     * Coherence time τ_c: Half-width at half-maximum of |g₁(τ)| or 1/e width
+     * Coherence length L_c = c · τ_c
+     * 
+     * WORKFLOW:
+     * ---------
+     * 1. Generate time-domain signal E(t) from modulation formulas
+     * 2. Apply FFT to get frequency spectrum
+     * 3. Compute autocorrelation via FFT for g₁(τ)
+     * 4. Extract coherence time from g₁ envelope
+     * 
+     * INTERACTIVE FEATURES:
+     * ---------------------
+     * - Pan: Click and drag on any plot
+     * - Zoom: Mouse wheel (zooms toward cursor)
+     * - Reset: Double-click or use Reset button
+     * 
+     * ============================================================================
+
+     */
+
     (function() {
         'use strict';
 
-        // === Global plot margin ===
-        const PLOT_MARGIN = { top: 10, right: 15, bottom: 32, left: 50 };
+        // ========================================================================
+        // CONSTANTS
+        // ========================================================================
+        
+        /** Speed of light in µm/ps (equivalent to µm·THz) */
+        const SPEED_OF_LIGHT = 299.792458;
+        
+        /** Euler's number for coherence calculations */
+        const E_INV = 1 / Math.E;
 
-        // === FFT Implementation (Cooley-Tukey) ===
+        // ========================================================================
+        // FFT IMPLEMENTATION (Cooley-Tukey Radix-2)
+        // ========================================================================
+        
+        /**
+         * In-place FFT computation using Cooley-Tukey algorithm.
+         * @param {Float64Array} real - Real part of signal (modified in place)
+         * @param {Float64Array} imag - Imaginary part of signal (modified in place)
+
+         */
         function fft(real, imag) {
             const n = real.length;
             if (n <= 1) return;
 
+            // Bit-reversal permutation
             for (let i = 1, j = 0; i < n; i++) {
                 let bit = n >> 1;
                 for (; j & bit; bit >>= 1) {
@@ -571,6 +681,7 @@
                 }
             }
 
+            // Cooley-Tukey iterative FFT
             for (let len = 2; len <= n; len <<= 1) {
                 const halfLen = len >> 1;
                 const angle = -2 * Math.PI / len;
@@ -596,10 +707,39 @@
             }
         }
 
+        /**
+         * Inverse FFT via conjugate trick.
+         * @param {Float64Array} real - Real part (modified in place)
+         * @param {Float64Array} imag - Imaginary part (modified in place)
+
+         */
+        function ifft(real, imag) {
+            const n = real.length;
+            // Conjugate
+            for (let i = 0; i < n; i++) imag[i] = -imag[i];
+            // Forward FFT
+            fft(real, imag);
+            // Conjugate and scale
+            for (let i = 0; i < n; i++) {
+                real[i] /= n;
+                imag[i] = -imag[i] / n;
+            }
+        }
+
+        /**
+         * Returns the next power of 2 >= n.
+
+         */
         function nextPowerOf2(n) {
             return Math.pow(2, Math.ceil(Math.log2(n)));
         }
 
+        /**
+         * Generates a Blackman window for spectral analysis.
+         * @param {number} n - Window length
+         * @returns {Float64Array} Window coefficients
+
+         */
         function blackmanWindow(n) {
             const window = new Float64Array(n);
             const a0 = 0.42, a1 = 0.5, a2 = 0.08;
@@ -611,13 +751,14 @@
             return window;
         }
 
-        // === DOM Elements ===
+        // ========================================================================
+        // DOM ELEMENTS
+        // ========================================================================
+        
         const elements = {
             formulaAmp: document.getElementById('formula-amp'),
             formulaPhase: document.getElementById('formula-phase'),
             formulaFreq: document.getElementById('formula-freq'),
-            formulaFull: document.getElementById('formula-full'),
-            useFullFormula: document.getElementById('use-full-formula'),
             tStart: document.getElementById('t-start'),
             tEnd: document.getElementById('t-end'),
             freqRange: document.getElementById('freq-range'),
@@ -626,76 +767,119 @@
             showEnvelope: document.getElementById('show-envelope'),
             showCarrier: document.getElementById('show-carrier'),
             showModSignal: document.getElementById('show-mod-signal'),
-            showPhase: document.getElementById('show-phase'),
             showPower: document.getElementById('show-power'),
+            showG1Envelope: document.getElementById('show-g1-envelope'),
             autoUpdate: document.getElementById('auto-update'),
             updateBtn: document.getElementById('update-btn'),
             infoText: document.getElementById('info-text'),
             timeCanvas: document.getElementById('time-canvas'),
             freqCanvas: document.getElementById('freq-canvas'),
-            cohCanvas: document.getElementById('coh-canvas'),
+            g1Canvas: document.getElementById('g1-canvas'),
             timeLegend: document.getElementById('time-legend'),
             freqLegend: document.getElementById('freq-legend'),
-            cohLegend: document.getElementById('coh-legend'),
+            g1Legend: document.getElementById('g1-legend'),
             tooltip: document.getElementById('tooltip'),
-            lambdaDisplay: document.getElementById('lambda-display')
+            fcWavelength: document.getElementById('fc-wavelength'),
+            cohTime: document.getElementById('coh-time'),
+            cohLength: document.getElementById('coh-length')
         };
 
-        const paramNames = ['fc', 'fm', 'A0', 'Am', 'beta', 'fs'];
+        const params = ['fc', 'fm', 'A0', 'Am', 'beta', 'fs'];
         const paramInputs = {};
         const paramSliders = {};
 
-        paramNames.forEach(p => {
+        params.forEach(p => {
             paramInputs[p] = document.getElementById(`param-${p}`);
             paramSliders[p] = document.getElementById(`slider-${p}`);
         });
 
-        // === Presets ===
+        // ========================================================================
+        // PRESET CONFIGURATIONS
+        // ========================================================================
+        
+        /**
+         * Predefined modulation configurations.
+         * Each preset defines amplitude A(t), phase φ(t), and frequency deviation Δf(t).
+
+         */
         const presets = {
             am: {
                 amp: 'A0 * (1 + Am * Math.sin(2*Math.PI*fm*t))',
                 phase: '0',
-                freq: '0'
+                freq: '0',
+                desc: 'Amplitude Modulation'
             },
             fm: {
                 amp: 'A0',
                 phase: '0',
-                freq: 'beta * fm * Math.sin(2*Math.PI*fm*t)'
+                freq: 'beta * fm * Math.sin(2*Math.PI*fm*t)',
+                desc: 'Frequency Modulation'
             },
             pm: {
                 amp: 'A0',
                 phase: 'beta * Math.sin(2*Math.PI*fm*t)',
-                freq: '0'
+                freq: '0',
+                desc: 'Phase Modulation'
             },
             cw: {
                 amp: 'A0',
                 phase: '0',
-                freq: '0'
+                freq: '0',
+                desc: 'Continuous Wave (unmodulated)'
             },
             chirp: {
                 amp: 'A0',
                 phase: '0',
-                freq: 'beta * 100 * t'
+                freq: 'beta * 0.001 * t',
+                desc: 'Linear Frequency Chirp'
             },
             pulse: {
-                amp: 'A0 * Math.exp(-Math.pow((t-2.5e-9)/0.5e-9, 2))',
+                amp: 'A0 * Math.exp(-Math.pow((t-100)/20, 2))',
                 phase: '0',
-                freq: '0'
+                freq: '0',
+                desc: 'Gaussian Pulse (centered at 100ps)'
+            },
+            noise: {
+                amp: 'A0 * (1 + 0.1*(Math.random()-0.5))',
+                phase: '0.1 * (Math.random()-0.5)',
+                freq: '0',
+                desc: 'CW with amplitude/phase noise'
             }
         };
 
-        // === State ===
-        let updateTimeout = null;
+        // ========================================================================
+        // VIEW STATE FOR PAN/ZOOM
+        // ========================================================================
+        
+        /**
+         * Stores the view transformation state for each plot.
+         * - offsetX/Y: Pan offset in data coordinates
+         * - scaleX/Y: Zoom scale factors
 
+         */
         const viewState = {
-            time: null,   // {min, max} in seconds
-            freq: null,   // {min, max} in Hz
-            coh: null     // {min, max} in seconds (lag)
+            time: { offsetX: 0, offsetY: 0, scaleX: 1, scaleY: 1, dataRange: null },
+            freq: { offsetX: 0, offsetY: 0, scaleX: 1, scaleY: 1, dataRange: null },
+            g1: { offsetX: 0, offsetY: 0, scaleX: 1, scaleY: 1, dataRange: null }
         };
 
-        // === Formula Evaluation ===
+        let updateTimeout = null;
+
+        // ========================================================================
+        // FORMULA EVALUATION
+        // ========================================================================
+        
+        /**
+         * Safely evaluates a mathematical formula string.
+         * @param {string} formula - JavaScript math expression
+         * @param {number|Array} t - Time value(s) in ps
+         * @param {Object} params - Parameter object {fc, fm, A0, Am, beta, fs}
+         * @returns {number|Array} Evaluated result(s)
+
+         */
         function evalFormula(formula, t, params) {
             try {
+                // Note: fm is passed in THz (converted from GHz input)
                 const func = new Function('t', 'fc', 'fs', 'fm', 'Am', 'A0', 'beta', 'Math',
                     `"use strict"; return ${formula};`);
                 
@@ -711,232 +895,295 @@
                     return isFinite(result) ? result : 0;
                 }
             } catch (e) {
-                console.error('Formula error:', e);
+                console.warn('Formula evaluation error:', e);
                 return Array.isArray(t) ? t.map(() => 0) : 0;
             }
         }
 
-        function buildFullFormula() {
-            const ampFormula = elements.formulaAmp.value.trim();
-            const phaseFormula = elements.formulaPhase.value.trim();
-            const freqFormula = elements.formulaFreq.value.trim();
-            
-            let fullFormula;
-            
-            if (freqFormula === '0' && phaseFormula === '0') {
-                // Envelope only, phase = 0
-                fullFormula = `(${ampFormula}) * Math.cos(0)`;
-            } else if (freqFormula === '0') {
-                fullFormula = `(${ampFormula}) * Math.cos((${phaseFormula}))`;
-            } else {
-                // freqPhase is passed in as an extra term
-                fullFormula = `(${ampFormula}) * Math.cos((${phaseFormula}) + freqPhase)`;
-            }
-            
-            if (!elements.useFullFormula.checked) {
-                elements.formulaFull.value = fullFormula;
-            }
-        }
+        /**
+         * Reads current parameter values from UI inputs.
+         * @returns {Object} Parameters with fc/fs in THz, fm in THz (converted from GHz)
 
-        function evalFullFormula(formula, t, params, freqPhase) {
-            try {
-                const func = new Function('t', 'fc', 'fs', 'fm', 'Am', 'A0', 'beta', 'freqPhase', 'Math',
-                    `"use strict"; return ${formula};`);
-                
-                if (Array.isArray(t)) {
-                    return t.map((ti, i) => {
-                        const fp = Array.isArray(freqPhase) ? freqPhase[i] : freqPhase;
-                        const result = func(ti, params.fc, params.fs, params.fm, 
-                                           params.Am, params.A0, params.beta, fp, Math);
-                        return isFinite(result) ? result : 0;
-                    });
-                }
-                return 0;
-            } catch (e) {
-                console.error('Full formula error:', e);
-                return Array.isArray(t) ? t.map(() => 0) : 0;
-            }
-        }
-
+         */
         function getParams() {
             return {
-                fc: parseFloat(paramInputs.fc.value) || 1.5e14,
-                fm: parseFloat(paramInputs.fm.value) || 5e9,
+                fc: parseFloat(paramInputs.fc.value) || 150,        // THz
+                fm: (parseFloat(paramInputs.fm.value) || 5) / 1000, // GHz → THz
                 A0: parseFloat(paramInputs.A0.value) || 1,
                 Am: parseFloat(paramInputs.Am.value) || 0.5,
                 beta: parseFloat(paramInputs.beta.value) || 1,
-                fs: parseFloat(paramInputs.fs.value) || 1e11
+                fs: parseFloat(paramInputs.fs.value) || 400         // THz
             };
         }
 
-        function updateLambdaDisplay(fc) {
-            if (!isFinite(fc) || fc <= 0) {
-                elements.lambdaDisplay.textContent = 'λ ≈ — µm';
-                return;
-            }
-            const c = 299792458; // m/s
-            const lambda_m = c / fc;
-            const lambda_um = lambda_m * 1e6;
-            elements.lambdaDisplay.textContent = `λ ≈ ${lambda_um.toFixed(3)} µm`;
+        /**
+         * Converts frequency (THz) to wavelength (µm).
+
+         */
+        function freqToWavelength(freqTHz) {
+            return SPEED_OF_LIGHT / freqTHz;
         }
 
+        /**
+         * Updates the wavelength display next to carrier frequency.
+
+         */
+        function updateWavelengthDisplay() {
+            const fc = parseFloat(paramInputs.fc.value) || 150;
+            const lambda = freqToWavelength(fc);
+            elements.fcWavelength.textContent = `λ=${lambda.toFixed(3)}µm`;
+        }
+
+        // ========================================================================
+        // SIGNAL GENERATION
+        // ========================================================================
+        
+        /**
+         * Generates the modulated optical signal from current parameters.
+         * 
+         * Signal model:
+         * E(t) = A(t) · cos(2π·fc·t + φ(t) + ∫2π·Δf(t)dt)
+         * 
+         * @returns {Object|null} Signal data object or null if invalid parameters
+
+         */
         function generateSignal() {
             const p = getParams();
             const tStart = parseFloat(elements.tStart.value) || 0;
-            const tEnd = parseFloat(elements.tEnd.value) || 5e-9;
-            const fs = p.fs;
+            const tEnd = parseFloat(elements.tEnd.value) || 200;
+            const fs = p.fs; // THz
         
+            // Calculate number of samples
+            // samples = fs (THz) × duration (ps) = fs × (tEnd - tStart)
             const numSamples = Math.floor((tEnd - tStart) * fs);
-            if (numSamples <= 1 || numSamples > 200000) {
+            if (numSamples <= 0 || numSamples > 2000000) {
+                console.warn(`Invalid sample count: ${numSamples}`);
                 return null;
             }
         
+            // Generate time array (in ps)
             const t = new Float64Array(numSamples);
             for (let i = 0; i < numSamples; i++) {
                 t[i] = tStart + i / fs;
             }
-        
             const tArray = Array.from(t);
-            let signal;
-            let amplitude;
-            let phase;
         
-            // Frequency-phase term from Δf(t)
+            // Evaluate modulation components
+            let amplitude = evalFormula(elements.formulaAmp.value, tArray, p);
+            let phase = evalFormula(elements.formulaPhase.value, tArray, p);
             let freqOffset = evalFormula(elements.formulaFreq.value, tArray, p);
+        
+            if (!Array.isArray(amplitude)) amplitude = tArray.map(() => amplitude);
+            if (!Array.isArray(phase)) phase = tArray.map(() => phase);
             if (!Array.isArray(freqOffset)) freqOffset = tArray.map(() => freqOffset);
-            
+        
+            // Integrate frequency offset to get phase contribution
+            // freqPhase(t) = ∫ 2π·Δf(t) dt
             const freqPhase = new Float64Array(numSamples);
             let cumPhase = 0;
+            const dt = 1 / fs; // ps
             for (let i = 0; i < numSamples; i++) {
-                if (freqOffset[i] !== 0) {
-                    cumPhase += 2 * Math.PI * freqOffset[i] / fs;
-                }
+                cumPhase += 2 * Math.PI * freqOffset[i] * dt;
                 freqPhase[i] = cumPhase;
             }
         
-            if (elements.useFullFormula.checked) {
-                signal = evalFullFormula(elements.formulaFull.value, tArray, p, Array.from(freqPhase));
-                if (!Array.isArray(signal)) signal = tArray.map(() => signal);
-                signal = new Float64Array(signal);
-                
-                // Approximate envelope
-                amplitude = signal.map(Math.abs);
-                phase = freqPhase;
-            } else {
-                // Build from components (envelope representation; no explicit 2π·fc·t)
-                amplitude = evalFormula(elements.formulaAmp.value, tArray, p);
-                phase = evalFormula(elements.formulaPhase.value, tArray, p);
-        
-                if (!Array.isArray(amplitude)) amplitude = tArray.map(() => amplitude);
-                if (!Array.isArray(phase)) phase = tArray.map(() => phase);
-        
-                signal = new Float64Array(numSamples);
-                for (let i = 0; i < numSamples; i++) {
-                    // Effective phase = φ(t) + ∫2πΔf(t) dt
-                    signal[i] = amplitude[i] * Math.cos(phase[i] + freqPhase[i]);
-                }
-                
-                buildFullFormula();
+            // Generate modulated signal
+            // E(t) = A(t) · cos(2π·fc·t + φ(t) + freqPhase(t))
+            const signal = new Float64Array(numSamples);
+            for (let i = 0; i < numSamples; i++) {
+                signal[i] = amplitude[i] * Math.cos(2 * Math.PI * p.fc * t[i] + phase[i] + freqPhase[i]);
             }
         
+            // Reference signals for display
             const carrier = tArray.map(ti => p.A0 * Math.cos(2 * Math.PI * p.fc * ti));
             const modSignal = tArray.map(ti => p.Am * Math.sin(2 * Math.PI * p.fm * ti));
             const power = signal.map(s => s * s);
 
-            return { t, signal, amplitude, phase, carrier, modSignal, power, params: p, tStart, tEnd };
+            return { 
+                t, signal, amplitude, phase, carrier, modSignal, power, 
+                params: p, tStart, tEnd, numSamples 
+            };
         }
+
+        // ========================================================================
+        // SPECTRUM COMPUTATION
+        // ========================================================================
         
-        function computeSpectrum(signal, fs) {
+        /**
+         * Computes the frequency spectrum using FFT with Blackman windowing.
+         * 
+         * @param {Float64Array} t - Time array (ps)
+         * @param {Float64Array} signal - Signal array
+         * @param {number} fs - Sample rate (THz)
+         * @returns {Object} Spectrum data {freqs, magnitude, nfft}
+
+         */
+        function computeSpectrum(t, signal, fs) {
             const n = signal.length;
             let nfft = parseInt(elements.nfft.value) || 0;
             
+            // Auto-select NFFT for good frequency resolution
             if (nfft <= 0) {
-                nfft = Math.max(nextPowerOf2(n) * 8, 65536);
+                nfft = Math.max(nextPowerOf2(n) * 4, 32768);
             } else {
                 nfft = nextPowerOf2(nfft);
             }
 
+            // Apply Blackman window to reduce spectral leakage
             const window = blackmanWindow(n);
             let windowSum = 0;
             for (let i = 0; i < n; i++) windowSum += window[i];
 
+            // Prepare FFT arrays (zero-padded)
             const real = new Float64Array(nfft);
             const imag = new Float64Array(nfft);
-
             for (let i = 0; i < n; i++) {
                 real[i] = signal[i] * window[i];
             }
 
+            // Compute FFT
             fft(real, imag);
 
+            // Extract positive frequency components
             const numPositive = Math.floor(nfft / 2) + 1;
             const freqs = new Float64Array(numPositive);
             const magnitude = new Float64Array(numPositive);
 
             for (let i = 0; i < numPositive; i++) {
-                freqs[i] = i * fs / nfft;
+                freqs[i] = i * fs / nfft;  // Frequency in THz
                 magnitude[i] = 2 * Math.sqrt(real[i] * real[i] + imag[i] * imag[i]) / windowSum;
             }
 
             return { freqs, magnitude, nfft };
         }
 
-        // g1(τ): first-order coherence (normalized autocorrelation of chosen signal)
+        // ========================================================================
+        // COHERENCE FUNCTION COMPUTATION
+        // ========================================================================
+        
+        /**
+         * Computes the first-order correlation function g₁(τ).
+         * 
+         * g₁(τ) = <E*(t)·E(t+τ)> / <|E(t)|²>
+         * 
+         * Uses the Wiener-Khinchin theorem:
+         * Autocorrelation = IFFT(|FFT(E)|²)
+         * 
+         * @param {Float64Array} signal - Electric field E(t)
+         * @param {number} fs - Sample rate (THz)
+         * @returns {Object} {tau, g1Real, g1Mag, coherenceTime, coherenceLength}
+
+         */
         function computeG1(signal, fs) {
             const n = signal.length;
-            if (n < 2) return null;
-
-            const maxLag = Math.floor(n * 0.5); // up to 50% of record
-            const g1 = new Float64Array(maxLag + 1);
-            const tau = new Float64Array(maxLag + 1);
-
-            // Remove DC offset
-            let mean = 0;
-            for (let i = 0; i < n; i++) mean += signal[i];
-            mean /= n;
-
-            const centered = new Float64Array(n);
-            for (let i = 0; i < n; i++) centered[i] = signal[i] - mean;
-
-            let denom = 0;
+            const nfft = nextPowerOf2(n * 2); // Zero-pad for linear correlation
+            
+            // Prepare arrays
+            const real = new Float64Array(nfft);
+            const imag = new Float64Array(nfft);
+            
+            // Copy signal (assuming real field; for complex field, handle separately)
             for (let i = 0; i < n; i++) {
-                denom += centered[i] * centered[i];
+                real[i] = signal[i];
             }
-            if (denom === 0) denom = 1;
-
-            for (let k = 0; k <= maxLag; k++) {
-                let num = 0;
-                for (let i = 0; i < n - k; i++) {
-                    num += centered[i] * centered[i + k];
-                }
-                g1[k] = num / denom;
-                tau[k] = k / fs;
+            
+            // FFT of signal
+            fft(real, imag);
+            
+            // Power spectrum |FFT(E)|²
+            for (let i = 0; i < nfft; i++) {
+                real[i] = real[i] * real[i] + imag[i] * imag[i];
+                imag[i] = 0;
             }
-
-            return { tau, g1 };
-        }
-
-        function estimateCoherence(tau, g1) {
-            if (!tau || !g1 || tau.length === 0) return { tc: 0, Lc: 0 };
-            const threshold = 1 / Math.E;
-            const abs = g1.map(Math.abs);
-            let tc = tau[tau.length - 1];
-
-            for (let i = 1; i < abs.length; i++) {
-                if (abs[i] <= threshold) {
-                    const t1 = tau[i - 1], t2 = tau[i];
-                    const g1_1 = abs[i - 1], g1_2 = abs[i];
-                    const w = (threshold - g1_1) / (g1_2 - g1_1 || 1);
-                    tc = t1 + w * (t2 - t1);
+            
+            // IFFT to get autocorrelation
+            ifft(real, imag);
+            
+            // Normalize to get g₁(τ)
+            const g1_0 = real[0]; // Autocorrelation at τ=0 = <|E|²>
+            
+            // Extract meaningful range (half the FFT length)
+            const numTau = Math.floor(n / 2);
+            const tau = new Float64Array(numTau);
+            const g1Real = new Float64Array(numTau);
+            const g1Mag = new Float64Array(numTau);
+            
+            for (let i = 0; i < numTau; i++) {
+                tau[i] = i / fs; // Time lag in ps
+                g1Real[i] = real[i] / g1_0;
+                g1Mag[i] = Math.abs(g1Real[i]);
+            }
+            
+            // Find coherence time: where |g₁(τ)| drops to 1/e
+            // Also compute envelope by finding local maxima (for oscillating g₁)
+            const envelope = computeEnvelope(g1Mag);
+            
+            let coherenceTime = tau[numTau - 1]; // Default to max if not found
+            for (let i = 1; i < numTau; i++) {
+                if (envelope[i] < E_INV) {
+                    // Linear interpolation for more accurate estimate
+                    const t1 = tau[i - 1];
+                    const t2 = tau[i];
+                    const v1 = envelope[i - 1];
+                    const v2 = envelope[i];
+                    coherenceTime = t1 + (E_INV - v1) * (t2 - t1) / (v2 - v1);
                     break;
                 }
             }
-
-            const c = 299792458; // m/s
-            const Lc = c * tc;
-            return { tc, Lc };
+            
+            // Coherence length: L_c = c × τ_c
+            const coherenceLength = SPEED_OF_LIGHT * coherenceTime; // µm
+            
+            return { tau, g1Real, g1Mag, envelope, coherenceTime, coherenceLength };
         }
 
+        /**
+         * Computes the envelope of an oscillating signal using peak detection.
+         * @param {Float64Array} signal - Input signal
+         * @returns {Float64Array} Envelope
+
+         */
+        function computeEnvelope(signal) {
+            const n = signal.length;
+            const envelope = new Float64Array(n);
+            
+            // Simple peak-hold envelope follower
+            let lastPeak = signal[0];
+            const decay = 0.995; // Slow decay between peaks
+            
+            for (let i = 0; i < n; i++) {
+                if (signal[i] >= lastPeak) {
+                    lastPeak = signal[i];
+                } else {
+                    lastPeak *= decay;
+                }
+                envelope[i] = Math.max(signal[i], lastPeak);
+            }
+            
+            // Smooth backward pass
+            lastPeak = envelope[n - 1];
+            for (let i = n - 2; i >= 0; i--) {
+                if (envelope[i] >= lastPeak) {
+                    lastPeak = envelope[i];
+                } else {
+                    lastPeak *= decay;
+                }
+                envelope[i] = Math.max(envelope[i], lastPeak);
+            }
+            
+            return envelope;
+        }
+
+        // ========================================================================
+        // CANVAS SETUP AND PLOTTING UTILITIES
+        // ========================================================================
+        
+        /**
+         * Sets up canvas for high-DPI rendering.
+         * @param {HTMLCanvasElement} canvas
+         * @returns {Object} {ctx, width, height}
+
+         */
         function setupCanvas(canvas) {
             const rect = canvas.parentElement.getBoundingClientRect();
             const dpr = window.devicePixelRatio || 1;
@@ -945,57 +1192,44 @@
             canvas.style.width = rect.width + 'px';
             canvas.style.height = rect.height + 'px';
             const ctx = canvas.getContext('2d');
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.scale(dpr, dpr);
             return { ctx, width: rect.width, height: rect.height };
         }
 
-        function plotTimeDomain(data, showPower, view) {
-            const { ctx, width, height } = setupCanvas(elements.timeCanvas);
-            const margin = PLOT_MARGIN;
+        /**
+         * Creates scale functions with pan/zoom transformation.
+
+         */
+        function createScales(dataRange, plotRange, view) {
+            const { xMin, xMax, yMin, yMax } = dataRange;
+            const { left, right, top, bottom } = plotRange;
+            const plotWidth = right - left;
+            const plotHeight = bottom - top;
+            
+            // Apply view transformation
+            const viewXMin = xMin + view.offsetX;
+            const viewXMax = viewXMin + (xMax - xMin) / view.scaleX;
+            const viewYMin = yMin + view.offsetY;
+            const viewYMax = viewYMin + (yMax - yMin) / view.scaleY;
+            
+            return {
+                scaleX: (val) => left + (val - viewXMin) / (viewXMax - viewXMin) * plotWidth,
+                scaleY: (val) => top + (1 - (val - viewYMin) / (viewYMax - viewYMin)) * plotHeight,
+                invScaleX: (px) => viewXMin + (px - left) / plotWidth * (viewXMax - viewXMin),
+                invScaleY: (py) => viewYMax - (py - top) / plotHeight * (viewYMax - viewYMin),
+                viewXMin, viewXMax, viewYMin, viewYMax
+            };
+        }
+
+        /**
+         * Draws grid lines and axis labels.
+
+         */
+        function drawGrid(ctx, width, height, margin, scales, xLabel, yLabel, xFormat, yFormat) {
             const plotWidth = width - margin.left - margin.right;
             const plotHeight = height - margin.top - margin.bottom;
-        
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, width, height);
-        
-            if (!data) return;
-        
-            const { t, signal, amplitude, phase, carrier, modSignal, power, tStart, tEnd, params } = data;
-            const xMin = view ? view.min : tStart;
-            const xMax = view ? view.max : tEnd;
-            if (xMax <= xMin) return;
             
-            const mainSignal = showPower ? power : signal;
-            const mainLabel = showPower ? 'Power |E|²' : 'Signal';
-        
-            let dataMax = Math.max(...mainSignal.map(Math.abs));
-            let dataMin = showPower ? 0 : -dataMax;
-            
-            if (!showPower) {
-                if (elements.showEnvelope.checked) {
-                    dataMax = Math.max(dataMax, Math.max(...amplitude.map(Math.abs)));
-                }
-                if (elements.showCarrier.checked) {
-                    dataMax = Math.max(dataMax, Math.max(...carrier.map(Math.abs)));
-                }
-                if (elements.showModSignal.checked) {
-                    dataMax = Math.max(dataMax, Math.max(...modSignal.map(Math.abs)));
-                }
-                dataMin = -dataMax;
-            }
-            
-            dataMax = dataMax || params.A0;
-            let yMin = dataMin * 1.1, yMax = dataMax * 1.1;
-            
-            if (showPower) {
-                yMin = 0;
-                yMax = dataMax * 1.1 || 1;
-            }
-        
-            const scaleX = (val) => margin.left + (val - xMin) / (xMax - xMin) * plotWidth;
-            const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
-        
-            // Grid
+            // Grid lines
             ctx.strokeStyle = '#0f3460';
             ctx.lineWidth = 0.5;
             
@@ -1006,7 +1240,7 @@
                 ctx.lineTo(width - margin.right, y);
                 ctx.stroke();
             }
-        
+
             for (let i = 0; i <= 8; i++) {
                 const x = margin.left + (i / 8) * plotWidth;
                 ctx.beginPath();
@@ -1014,7 +1248,7 @@
                 ctx.lineTo(x, height - margin.bottom);
                 ctx.stroke();
             }
-        
+
             // Axes
             ctx.strokeStyle = '#444';
             ctx.lineWidth = 1;
@@ -1023,86 +1257,145 @@
             ctx.lineTo(margin.left, height - margin.bottom);
             ctx.lineTo(width - margin.right, height - margin.bottom);
             ctx.stroke();
-        
+
             // Labels
             ctx.fillStyle = '#666';
             ctx.font = '10px system-ui';
             ctx.textAlign = 'center';
             
+            // X-axis labels
             for (let i = 0; i <= 8; i++) {
-                const tVal = xMin + (i / 8) * (xMax - xMin);
+                const xVal = scales.viewXMin + (i / 8) * (scales.viewXMax - scales.viewXMin);
                 const x = margin.left + (i / 8) * plotWidth;
-                ctx.fillText((tVal * 1e9).toFixed(3), x, height - margin.bottom + 12);
+                ctx.fillText(xFormat(xVal), x, height - margin.bottom + 12);
             }
-            ctx.fillText('Time (ns)', margin.left + plotWidth / 2, height - 4);
-        
+            ctx.fillText(xLabel, margin.left + plotWidth / 2, height - 4);
+
+            // Y-axis labels
             ctx.textAlign = 'right';
             for (let i = 0; i <= 5; i++) {
-                const yVal = yMax - (i / 5) * (yMax - yMin);
+                const yVal = scales.viewYMax - (i / 5) * (scales.viewYMax - scales.viewYMin);
                 const y = margin.top + (i / 5) * plotHeight;
-                ctx.fillText(showPower ? yVal.toFixed(2) : yVal.toFixed(2), margin.left - 4, y + 3);
+                ctx.fillText(yFormat(yVal), margin.left - 4, y + 3);
             }
-        
-            function plotLine(dataArr, color, lineWidth = 1) {
-                ctx.strokeStyle = color;
-                ctx.lineWidth = lineWidth;
-                ctx.beginPath();
-                let started = false;
-                for (let i = 0; i < t.length; i++) {
-                    const ti = t[i];
-                    if (ti < xMin || ti > xMax) continue;
-                    const x = scaleX(ti);
-                    const y = scaleY(dataArr[i]);
+        }
+
+        /**
+         * Plots a line on the canvas.
+
+         */
+        function plotLine(ctx, x, y, scales, margin, width, height, color, lineWidth = 1) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.beginPath();
+            let started = false;
+            
+            for (let i = 0; i < x.length; i++) {
+                const px = scales.scaleX(x[i]);
+                const py = scales.scaleY(y[i]);
+                
+                if (px >= margin.left && px <= width - margin.right &&
+                    py >= margin.top && py <= height - margin.bottom) {
                     if (!started) {
-                        ctx.moveTo(x, y);
+                        ctx.moveTo(px, py);
                         started = true;
                     } else {
-                        ctx.lineTo(x, y);
+                        ctx.lineTo(px, py);
                     }
+                } else if (started) {
+                    // Continue line even if temporarily outside
+                    ctx.lineTo(Math.max(margin.left, Math.min(width - margin.right, px)),
+                              Math.max(margin.top, Math.min(height - margin.bottom, py)));
                 }
-                ctx.stroke();
             }
+            ctx.stroke();
+        }
+
+        // ========================================================================
+        // PLOT FUNCTIONS
+        // ========================================================================
         
+        /**
+         * Plots the time-domain signal.
+
+         */
+        function plotTimeDomain(data, showPower = false) {
+            const { ctx, width, height } = setupCanvas(elements.timeCanvas);
+            const margin = { top: 10, right: 15, bottom: 32, left: 55 };
+            
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, width, height);
+
+            if (!data) return;
+
+            const { t, signal, amplitude, carrier, modSignal, power, tStart, tEnd, params } = data;
+            const mainSignal = showPower ? power : signal;
+
+            // Calculate data range
+            let yMax = Math.max(...mainSignal.map(Math.abs));
+            if (!showPower && elements.showEnvelope.checked) {
+                yMax = Math.max(yMax, Math.max(...amplitude.map(Math.abs)));
+            }
+            yMax = yMax || params.A0;
+            let yMin = showPower ? 0 : -yMax;
+            yMax *= 1.1;
+            yMin *= 1.1;
+
+            // Store data range for pan/zoom
+            if (!viewState.time.dataRange) {
+                viewState.time.dataRange = { xMin: tStart, xMax: tEnd, yMin, yMax };
+            }
+
+            const scales = createScales(
+                viewState.time.dataRange,
+                { left: margin.left, right: width - margin.right, top: margin.top, bottom: height - margin.bottom },
+                viewState.time
+            );
+
+            // Draw grid
+            drawGrid(ctx, width, height, margin, scales, 
+                'Time (ps)', showPower ? 'Power' : 'E-field',
+                v => v.toFixed(1), v => v.toFixed(2));
+
             const legendItems = [];
-        
+            const tArray = Array.from(t);
+
+            // Plot components
             if (!showPower) {
                 if (elements.showCarrier.checked) {
-                    plotLine(carrier, '#22c55e', 0.7);
-                    legendItems.push({ color: '#22c55e', label: 'Carrier (fc)' });
+                    plotLine(ctx, tArray, carrier, scales, margin, width, height, '#22c55e', 0.5);
+                    legendItems.push({ color: '#22c55e', label: 'Carrier' });
                 }
-        
+
                 if (elements.showModSignal.checked) {
-                    plotLine(modSignal, '#a855f7', 0.8);
+                    plotLine(ctx, tArray, modSignal, scales, margin, width, height, '#a855f7', 0.8);
                     legendItems.push({ color: '#a855f7', label: 'Mod' });
                 }
-        
-                if (elements.showPhase.checked && phase.some(p => p !== 0)) {
-                    const maxPhase = Math.max(...phase.map(Math.abs)) || 1;
-                    const phaseScaled = phase.map(p => p / maxPhase * params.A0);
-                    plotLine(phaseScaled, '#06b6d4', 0.8);
-                    legendItems.push({ color: '#06b6d4', label: 'Phase (scaled)' });
-                }
             }
-        
-            plotLine(mainSignal, showPower ? '#f59e0b' : '#3b82f6', 1);
-            legendItems.push({ color: showPower ? '#f59e0b' : '#3b82f6', label: mainLabel });
-        
+
+            // Main signal
+            plotLine(ctx, tArray, Array.from(mainSignal), scales, margin, width, height, 
+                showPower ? '#f59e0b' : '#3b82f6', 1);
+            legendItems.push({ color: showPower ? '#f59e0b' : '#3b82f6', label: showPower ? '|E|²' : 'E(t)' });
+
             if (!showPower && elements.showEnvelope.checked) {
-                plotLine(amplitude, '#ef4444', 1);
-                plotLine(amplitude.map(a => -a), '#ef4444', 1);
+                plotLine(ctx, tArray, Array.from(amplitude), scales, margin, width, height, '#ef4444', 1);
+                plotLine(ctx, tArray, amplitude.map(a => -a), scales, margin, width, height, '#ef4444', 1);
                 legendItems.push({ color: '#ef4444', label: 'Envelope' });
             }
-        
+
             elements.timeLegend.innerHTML = legendItems.map(item => 
                 `<div class="legend-item"><div class="legend-color" style="background:${item.color}"></div><span>${item.label}</span></div>`
             ).join('');
         }
 
-        function plotFrequencyDomain(data, spectrum, showPower, view) {
+        /**
+         * Plots the frequency spectrum.
+
+         */
+        function plotFrequencyDomain(data, spectrum, showPower = false) {
             const { ctx, width, height } = setupCanvas(elements.freqCanvas);
-            const margin = PLOT_MARGIN;
-            const plotWidth = width - margin.left - margin.right;
-            const plotHeight = height - margin.top - margin.bottom;
+            const margin = { top: 10, right: 15, bottom: 32, left: 55 };
 
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, width, height);
@@ -1111,222 +1404,179 @@
 
             const { params } = data;
             const { freqs, magnitude } = spectrum;
-            const freqMaxInput = parseFloat(elements.freqRange.value) || freqs[freqs.length - 1];
-            const xMin = view ? view.min : 0;
-            const xMax = view ? view.max : freqMaxInput;
-            if (xMax <= xMin) return;
-
+            const maxFreq = parseFloat(elements.freqRange.value) || 160;
             const logScale = elements.logScale.checked;
-            const showLabel = showPower ? 'Power Spectrum' : 'Spectrum';
 
+            // Filter to display range and convert to dB if needed
             const filteredFreqs = [];
             const filteredMag = [];
             
             for (let i = 0; i < freqs.length; i++) {
-                const f = freqs[i];
-                if (f >= xMin && f <= xMax) {
-                    filteredFreqs.push(f);
+                if (freqs[i] <= maxFreq) {
+                    filteredFreqs.push(freqs[i]);
                     filteredMag.push(logScale ? 20 * Math.log10(magnitude[i] + 1e-12) : magnitude[i]);
                 }
             }
 
-            if (filteredFreqs.length === 0) return;
-
+            // Calculate Y range
             let yMin, yMax;
             if (logScale) {
-                const validMag = filteredMag.filter(m => isFinite(m));
-                yMax = validMag.length > 0 ? Math.max(...validMag) + 5 : 0;
-                const minCand = validMag.length > 0 ? Math.min(...validMag) : -100;
-                yMin = minCand - 10;
+                const validMag = filteredMag.filter(m => m > -100);
+                yMin = validMag.length > 0 ? Math.min(...validMag) - 10 : -100;
+                yMax = Math.max(...filteredMag) + 5;
             } else {
                 yMin = 0;
                 yMax = Math.max(...filteredMag) * 1.1 || 1;
             }
 
-            const scaleX = (val) => margin.left + (val - xMin) / (xMax - xMin) * plotWidth;
-            const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
+            // Store data range
+            if (!viewState.freq.dataRange) {
+                viewState.freq.dataRange = { xMin: 0, xMax: maxFreq, yMin, yMax };
+            }
 
-            // Grid
-            ctx.strokeStyle = '#0f3460';
-            ctx.lineWidth = 0.5;
-            
-            for (let i = 0; i <= 5; i++) {
-                const y = margin.top + (i / 5) * plotHeight;
+            const scales = createScales(
+                viewState.freq.dataRange,
+                { left: margin.left, right: width - margin.right, top: margin.top, bottom: height - margin.bottom },
+                viewState.freq
+            );
+
+            // Draw grid
+            drawGrid(ctx, width, height, margin, scales,
+                'Frequency (THz)', logScale ? 'Magnitude (dB)' : 'Magnitude',
+                v => v.toFixed(1), v => logScale ? v.toFixed(0) : v.toFixed(3));
+
+            // Carrier frequency marker
+            if (params.fc >= scales.viewXMin && params.fc <= scales.viewXMax) {
+                const xCarrier = scales.scaleX(params.fc);
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 2]);
                 ctx.beginPath();
-                ctx.moveTo(margin.left, y);
-                ctx.lineTo(width - margin.right, y);
+                ctx.moveTo(xCarrier, margin.top);
+                ctx.lineTo(xCarrier, height - margin.bottom);
                 ctx.stroke();
+                ctx.setLineDash([]);
             }
 
-            for (let i = 0; i <= 8; i++) {
-                const x = margin.left + (i / 8) * plotWidth;
-                ctx.beginPath();
-                ctx.moveTo(x, margin.top);
-                ctx.lineTo(x, height - margin.bottom);
-                ctx.stroke();
-            }
-
-            // Axes
-            ctx.strokeStyle = '#444';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(margin.left, margin.top);
-            ctx.lineTo(margin.left, height - margin.bottom);
-            ctx.lineTo(width - margin.right, height - margin.bottom);
-            ctx.stroke();
-
-            // Labels
-            ctx.fillStyle = '#666';
-            ctx.font = '10px system-ui';
-            ctx.textAlign = 'center';
+            // Sideband markers
+            const fmTHz = params.fm; // Already in THz
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 0.7;
+            ctx.setLineDash([2, 2]);
             
-            for (let i = 0; i <= 8; i++) {
-                const fVal = xMin + (i / 8) * (xMax - xMin);
-                const x = margin.left + (i / 8) * plotWidth;
-                ctx.fillText((fVal / 1e9).toFixed(2), x, height - margin.bottom + 12);
-            }
-            ctx.fillText('Frequency (GHz, baseband)', margin.left + plotWidth / 2, height - 4);
+            [params.fc - fmTHz, params.fc + fmTHz].forEach(f => {
+                if (f > 0 && f >= scales.viewXMin && f <= scales.viewXMax) {
+                    const x = scales.scaleX(f);
+                    ctx.beginPath();
+                    ctx.moveTo(x, margin.top);
+                    ctx.lineTo(x, height - margin.bottom);
+                    ctx.stroke();
+                }
+            });
+            ctx.setLineDash([]);
 
-            ctx.textAlign = 'right';
-            for (let i = 0; i <= 5; i++) {
-                const yVal = yMax - (i / 5) * (yMax - yMin);
-                const y = margin.top + (i / 5) * plotHeight;
-                ctx.fillText(logScale ? yVal.toFixed(0) : yVal.toFixed(2), margin.left - 4, y + 3);
-            }
+            // Plot spectrum
+            plotLine(ctx, filteredFreqs, filteredMag, scales, margin, width, height,
+                showPower ? '#f59e0b' : '#3b82f6', 1);
 
-            // Spectrum line
-            ctx.strokeStyle = showPower ? '#f59e0b' : '#3b82f6';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            for (let i = 0; i < filteredFreqs.length; i++) {
-                const x = scaleX(filteredFreqs[i]);
-                const y = Math.max(margin.top, Math.min(height - margin.bottom, scaleY(filteredMag[i])));
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
+            // Wavelength annotation at carrier
+            const lambdaCarrier = freqToWavelength(params.fc);
+            
             elements.freqLegend.innerHTML = `
-                <div class="legend-item"><div class="legend-color" style="background:${showPower ? '#f59e0b' : '#3b82f6'}"></div><span>${showLabel}</span></div>
-                <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div><span>fc ≈ ${(params.fc/1e12).toFixed(2)} THz</span></div>
-                <div class="legend-item"><div class="legend-color" style="background:#22c55e"></div><span>fm = ${(params.fm/1e9).toFixed(2)} GHz</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:${showPower ? '#f59e0b' : '#3b82f6'}"></div><span>${showPower ? 'Power' : 'Field'} Spectrum</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div><span>fc=${params.fc.toFixed(2)}THz (λ=${lambdaCarrier.toFixed(3)}µm)</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:#22c55e"></div><span>fc±${(fmTHz*1000).toFixed(1)}GHz</span></div>
             `;
         }
 
-        function plotCoherence(coh, view, tc, Lc) {
-            const { ctx, width, height } = setupCanvas(elements.cohCanvas);
-            const margin = PLOT_MARGIN;
-            const plotWidth = width - margin.left - margin.right;
-            const plotHeight = height - margin.top - margin.bottom;
+        /**
+         * Plots the g₁(τ) correlation function.
+
+         */
+        function plotG1(g1Data) {
+            const { ctx, width, height } = setupCanvas(elements.g1Canvas);
+            const margin = { top: 10, right: 15, bottom: 32, left: 55 };
 
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, width, height);
 
-            if (!coh) return;
+            if (!g1Data) return;
 
-            const { tau, g1 } = coh;
-            const xMin = view ? view.min : tau[0];
-            const xMax = view ? view.max : tau[tau.length - 1];
-            if (xMax <= xMin) return;
-
-            let yMin = Math.min(...g1);
-            let yMax = Math.max(...g1);
-            if (yMin === yMax) {
-                yMin -= 1;
-                yMax += 1;
+            const { tau, g1Real, g1Mag, envelope, coherenceTime } = g1Data;
+            
+            // Data range
+            const xMax = tau[tau.length - 1];
+            
+            if (!viewState.g1.dataRange) {
+                viewState.g1.dataRange = { xMin: 0, xMax, yMin: -0.1, yMax: 1.1 };
             }
 
-            const scaleX = (val) => margin.left + (val - xMin) / (xMax - xMin) * plotWidth;
-            const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
+            const scales = createScales(
+                viewState.g1.dataRange,
+                { left: margin.left, right: width - margin.right, top: margin.top, bottom: height - margin.bottom },
+                viewState.g1
+            );
 
-            // Grid
-            ctx.strokeStyle = '#0f3460';
-            ctx.lineWidth = 0.5;
-            for (let i = 0; i <= 5; i++) {
-                const y = margin.top + (i / 5) * plotHeight;
+            // Draw grid
+            drawGrid(ctx, width, height, margin, scales,
+                'Time delay τ (ps)', 'g₁(τ)',
+                v => v.toFixed(1), v => v.toFixed(2));
+
+            // 1/e reference line
+            const y1e = scales.scaleY(E_INV);
+            if (y1e >= margin.top && y1e <= height - margin.bottom) {
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 0.5;
+                ctx.setLineDash([4, 4]);
                 ctx.beginPath();
-                ctx.moveTo(margin.left, y);
-                ctx.lineTo(width - margin.right, y);
+                ctx.moveTo(margin.left, y1e);
+                ctx.lineTo(width - margin.right, y1e);
                 ctx.stroke();
+                ctx.setLineDash([]);
+                
+                ctx.fillStyle = '#666';
+                ctx.font = '9px system-ui';
+                ctx.textAlign = 'left';
+                ctx.fillText('1/e', width - margin.right + 2, y1e + 3);
             }
 
-            for (let i = 0; i <= 8; i++) {
-                const x = margin.left + (i / 8) * plotWidth;
+            // Coherence time marker
+            if (coherenceTime >= scales.viewXMin && coherenceTime <= scales.viewXMax) {
+                const xCoh = scales.scaleX(coherenceTime);
+                ctx.strokeStyle = '#e94560';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 2]);
                 ctx.beginPath();
-                ctx.moveTo(x, margin.top);
-                ctx.lineTo(x, height - margin.bottom);
+                ctx.moveTo(xCoh, margin.top);
+                ctx.lineTo(xCoh, height - margin.bottom);
                 ctx.stroke();
+                ctx.setLineDash([]);
             }
 
-            // Axes
-            ctx.strokeStyle = '#444';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(margin.left, margin.top);
-            ctx.lineTo(margin.left, height - margin.bottom);
-            ctx.lineTo(width - margin.right, height - margin.bottom);
-            ctx.stroke();
+            const tauArray = Array.from(tau);
+            const legendItems = [];
 
-            // Labels
-            ctx.fillStyle = '#666';
-            ctx.font = '10px system-ui';
-            ctx.textAlign = 'center';
+            // Plot |g₁(τ)|
+            plotLine(ctx, tauArray, Array.from(g1Mag), scales, margin, width, height, '#3b82f6', 1);
+            legendItems.push({ color: '#3b82f6', label: '|g₁(τ)|' });
 
-            for (let i = 0; i <= 8; i++) {
-                const tVal = xMin + (i / 8) * (xMax - xMin);
-                const x = margin.left + (i / 8) * plotWidth;
-                ctx.fillText((tVal * 1e9).toFixed(3), x, height - margin.bottom + 12);
-            }
-            ctx.fillText('Delay τ (ns)', margin.left + plotWidth / 2, height - 4);
-
-            ctx.textAlign = 'right';
-            for (let i = 0; i <= 5; i++) {
-                const yVal = yMax - (i / 5) * (yMax - yMin);
-                const y = margin.top + (i / 5) * plotHeight;
-                ctx.fillText(yVal.toFixed(2), margin.left - 4, y + 3);
+            // Plot envelope
+            if (elements.showG1Envelope.checked) {
+                plotLine(ctx, tauArray, Array.from(envelope), scales, margin, width, height, '#ef4444', 1.5);
+                legendItems.push({ color: '#ef4444', label: 'Envelope' });
             }
 
-            // g1 curve
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            let started = false;
-            for (let i = 0; i < tau.length; i++) {
-                const ti = tau[i];
-                if (ti < xMin || ti > xMax) continue;
-                const x = scaleX(ti);
-                const y = scaleY(g1[i]);
-                if (!started) {
-                    ctx.moveTo(x, y);
-                    started = true;
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
+            legendItems.push({ color: '#e94560', label: `τc=${coherenceTime.toFixed(2)}ps` });
 
-            // 1/e line
-            const eLevel = 1/Math.E;
-            const yE = scaleY(eLevel);
-            ctx.strokeStyle = '#f97316';
-            ctx.setLineDash([4, 3]);
-            ctx.beginPath();
-            ctx.moveTo(margin.left, yE);
-            ctx.lineTo(width - margin.right, yE);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            const tc_ns = tc * 1e9;
-            const Lc_mm = Lc * 1e3;
-
-            elements.cohLegend.innerHTML = `
-                <div class="legend-item"><div class="legend-color" style="background:#10b981"></div><span>g₁(τ)</span></div>
-                <div class="legend-item"><div class="legend-color" style="background:#f97316"></div><span>|g₁| = 1/e</span></div>
-                <div class="legend-item"><span>τc ≈ ${tc_ns.toFixed(3)} ns</span></div>
-                <div class="legend-item"><span>Lc ≈ ${Lc_mm.toFixed(2)} mm</span></div>
-            `;
+            elements.g1Legend.innerHTML = legendItems.map(item => 
+                `<div class="legend-item"><div class="legend-color" style="background:${item.color}"></div><span>${item.label}</span></div>`
+            ).join('');
         }
 
+        // ========================================================================
+        // MAIN UPDATE FUNCTION
+        // ========================================================================
+        
         function updatePlots() {
             const startTime = performance.now();
             
@@ -1334,48 +1584,32 @@
                 const data = generateSignal();
                 
                 if (!data) {
-                    elements.infoText.textContent = 'Invalid or extreme parameters (check fs·(tEnd−tStart) and keep < 2e5 samples).';
+                    elements.infoText.textContent = 'Invalid parameters';
                     return;
                 }
-
-                updateLambdaDisplay(data.params.fc);
-
-                // Initialize view windows if needed
-                if (!viewState.time) {
-                    viewState.time = { min: data.tStart, max: data.tEnd };
-                }
-                
+        
                 const showPower = elements.showPower.checked;
                 const plotSignal = showPower ? data.power : data.signal;
-
-                const spectrum = computeSpectrum(plotSignal, data.params.fs);
-
-                if (!viewState.freq) {
-                    const maxInput = parseFloat(elements.freqRange.value) || spectrum.freqs[spectrum.freqs.length - 1];
-                    viewState.freq = { min: 0, max: maxInput };
-                }
-
-                const coh = computeG1(plotSignal, data.params.fs);
-                let tc = 0, Lc = 0;
-                if (coh) {
-                    const est = estimateCoherence(coh.tau, coh.g1);
-                    tc = est.tc;
-                    Lc = est.Lc;
-                    if (!viewState.coh) {
-                        viewState.coh = { min: 0, max: coh.tau[coh.tau.length - 1] };
-                    }
-                }
-
-                plotTimeDomain(data, showPower, viewState.time);
-                plotFrequencyDomain(data, spectrum, showPower, viewState.freq);
-                if (coh) {
-                    plotCoherence(coh, viewState.coh, tc, Lc);
-                }
-
+                
+                // Compute spectrum
+                const spectrum = computeSpectrum(data.t, plotSignal, data.params.fs);
+                
+                // Compute g₁(τ)
+                const g1Data = computeG1(data.signal, data.params.fs);
+                
+                // Plot all graphs
+                plotTimeDomain(data, showPower);
+                plotFrequencyDomain(data, spectrum, showPower);
+                plotG1(g1Data);
+                
+                // Update coherence info display
+                elements.cohTime.textContent = `${g1Data.coherenceTime.toFixed(3)} ps`;
+                elements.cohLength.textContent = `${g1Data.coherenceLength.toFixed(2)} µm`;
+        
                 const elapsed = (performance.now() - startTime).toFixed(0);
-                const freqRes = (data.params.fs / spectrum.nfft).toExponential(2);
+                const freqRes = (data.params.fs / spectrum.nfft * 1000).toFixed(2); // Convert to GHz
                 const mode = showPower ? ' [Power]' : ' [Field]';
-                elements.infoText.textContent = `${data.t.length} pts | NFFT ${spectrum.nfft} | Δf=${freqRes} Hz | ${elapsed} ms${mode}`;
+                elements.infoText.textContent = `${data.numSamples} pts | NFFT ${spectrum.nfft} | Δf=${freqRes}GHz | ${elapsed}ms${mode}`;
                     
             } catch (e) {
                 console.error(e);
@@ -1389,87 +1623,130 @@
             updateTimeout = setTimeout(updatePlots, 150);
         }
 
-        // === Pan & Zoom Helpers ===
-        function attachPanZoom(canvas, getRange, setRange, domainMin) {
-            let isPanning = false;
-            let startX = 0;
-            let startRange = null;
+        // ========================================================================
+        // PAN AND ZOOM HANDLERS
+        // ========================================================================
+        
+        /**
+         * Sets up pan and zoom interactions for a canvas.
 
+         */
+        function setupPanZoom(canvas, viewKey) {
+            let isDragging = false;
+            let lastX, lastY;
+            
             canvas.addEventListener('mousedown', (e) => {
-                isPanning = true;
-                startX = e.clientX;
-                const r = getRange();
-                if (!r) return;
-                startRange = { min: r.min, max: r.max };
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                canvas.style.cursor = 'grabbing';
             });
-
-            window.addEventListener('mousemove', (e) => {
-                if (!isPanning || !startRange) return;
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const view = viewState[viewKey];
+                const dataRange = view.dataRange;
+                if (!dataRange) return;
+                
                 const rect = canvas.getBoundingClientRect();
-                const plotWidth = rect.width - PLOT_MARGIN.left - PLOT_MARGIN.right;
-                if (plotWidth <= 0) return;
-                const dx = e.clientX - startX;
-                const frac = dx / plotWidth;
-                const width = startRange.max - startRange.min;
-                let newMin = startRange.min - frac * width;
-                let newMax = startRange.max - frac * width;
-
-                if (domainMin !== undefined) {
-                    const shift = domainMin - newMin;
-                    if (newMin < domainMin) {
-                        newMin += shift;
-                        newMax += shift;
-                    }
-                }
-
-                setRange({ min: newMin, max: newMax });
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                
+                // Convert pixel delta to data delta
+                const plotWidth = rect.width - 70; // Approximate margins
+                const plotHeight = rect.height - 42;
+                
+                const dataWidth = (dataRange.xMax - dataRange.xMin) / view.scaleX;
+                const dataHeight = (dataRange.yMax - dataRange.yMin) / view.scaleY;
+                
+                view.offsetX -= dx / plotWidth * dataWidth;
+                view.offsetY += dy / plotHeight * dataHeight;
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+                
                 updatePlots();
             });
-
-            window.addEventListener('mouseup', () => {
-                isPanning = false;
-                startRange = null;
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
             });
-
+            
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
+            });
+            
             canvas.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                const r = getRange();
-                if (!r) return;
+                
+                const view = viewState[viewKey];
+                const dataRange = view.dataRange;
+                if (!dataRange) return;
+                
                 const rect = canvas.getBoundingClientRect();
-                const plotWidth = rect.width - PLOT_MARGIN.left - PLOT_MARGIN.right;
-                if (plotWidth <= 0) return;
-
-                const x = e.clientX - rect.left - PLOT_MARGIN.left;
-                const pos = Math.min(Math.max(x, 0), plotWidth) / plotWidth;
-
-                const width = r.max - r.min;
-                const delta = e.deltaY > 0 ? 1 : -1;
-                const zoomFactor = Math.exp(delta * 0.15);
-                const newWidth = width * zoomFactor;
-                const center = r.min + pos * width;
-
-                let newMin = center - pos * newWidth;
-                let newMax = newMin + newWidth;
-
-                if (domainMin !== undefined && newMin < domainMin) {
-                    const shift = domainMin - newMin;
-                    newMin += shift;
-                    newMax += shift;
-                }
-
-                setRange({ min: newMin, max: newMax });
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                // Zoom factor
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                
+                // Calculate mouse position in data coordinates before zoom
+                const margin = { left: 55, top: 10 };
+                const plotWidth = rect.width - 70;
+                const plotHeight = rect.height - 42;
+                
+                const dataWidth = (dataRange.xMax - dataRange.xMin) / view.scaleX;
+                const dataHeight = (dataRange.yMax - dataRange.yMin) / view.scaleY;
+                
+                const mouseDataX = dataRange.xMin + view.offsetX + (mouseX - margin.left) / plotWidth * dataWidth;
+                const mouseDataY = dataRange.yMax + view.offsetY - (mouseY - margin.top) / plotHeight * dataHeight;
+                
+                // Apply zoom
+                view.scaleX *= zoomFactor;
+                view.scaleY *= zoomFactor;
+                
+                // Clamp zoom
+                view.scaleX = Math.max(0.1, Math.min(100, view.scaleX));
+                view.scaleY = Math.max(0.1, Math.min(100, view.scaleY));
+                
+                // Adjust offset to keep mouse position fixed
+                const newDataWidth = (dataRange.xMax - dataRange.xMin) / view.scaleX;
+                const newDataHeight = (dataRange.yMax - dataRange.yMin) / view.scaleY;
+                
+                view.offsetX = mouseDataX - dataRange.xMin - (mouseX - margin.left) / plotWidth * newDataWidth;
+                view.offsetY = mouseDataY - dataRange.yMax + (mouseY - margin.top) / plotHeight * newDataHeight;
+                
                 updatePlots();
-            }, { passive: false });
+            });
+            
+            canvas.addEventListener('dblclick', () => {
+                resetView(viewKey);
+            });
         }
 
-        // === Event Listeners ===
-        paramNames.forEach(p => {
+        /**
+         * Resets the view to default (no pan/zoom).
+
+         */
+        function resetView(viewKey) {
+            viewState[viewKey] = { offsetX: 0, offsetY: 0, scaleX: 1, scaleY: 1, dataRange: null };
+            updatePlots();
+        }
+
+        // ========================================================================
+        // EVENT LISTENERS
+        // ========================================================================
+        
+        // Parameter sliders and inputs
+        params.forEach(p => {
             paramSliders[p].addEventListener('input', () => {
-                const val = parseFloat(paramSliders[p].value);
-                if (!isNaN(val)) {
-                    paramInputs[p].value = val;
-                }
-                if (p === 'fc') updateLambdaDisplay(val);
+                paramInputs[p].value = parseFloat(paramSliders[p].value).toPrecision(4);
+                if (p === 'fc') updateWavelengthDisplay();
+                // Reset frequency view when carrier changes significantly
+                if (p === 'fc') viewState.freq.dataRange = null;
                 scheduleUpdate();
             });
             
@@ -1477,54 +1754,36 @@
                 const val = parseFloat(paramInputs[p].value);
                 if (isFinite(val)) {
                     paramSliders[p].value = val;
+                    if (p === 'fc') updateWavelengthDisplay();
+                    if (p === 'fc') viewState.freq.dataRange = null;
                 }
-                if (p === 'fc') updateLambdaDisplay(val);
                 scheduleUpdate();
             });
         });
 
+        // Formula and settings inputs
         [elements.formulaAmp, elements.formulaPhase, elements.formulaFreq,
          elements.tStart, elements.tEnd, elements.freqRange, elements.nfft].forEach(el => {
             el.addEventListener('input', () => {
-                // When time or freq ranges are changed manually, reset views
+                // Reset views when time/freq range changes
                 if (el === elements.tStart || el === elements.tEnd) {
-                    viewState.time = null;
-                    viewState.coh = null;
+                    viewState.time.dataRange = null;
+                    viewState.g1.dataRange = null;
                 }
                 if (el === elements.freqRange) {
-                    viewState.freq = null;
+                    viewState.freq.dataRange = null;
                 }
                 scheduleUpdate();
             });
         });
 
+        // Checkboxes
         [elements.logScale, elements.showEnvelope, elements.showCarrier,
-         elements.showModSignal, elements.showPhase, elements.showPower].forEach(el => {
+         elements.showModSignal, elements.showPower, elements.showG1Envelope].forEach(el => {
             el.addEventListener('change', updatePlots);
         });
 
-        elements.formulaFull.addEventListener('input', () => {
-            if (elements.useFullFormula.checked) {
-                scheduleUpdate();
-            }
-        });
-        
-        elements.useFullFormula.addEventListener('change', () => {
-            if (!elements.useFullFormula.checked) {
-                buildFullFormula();
-            }
-            updatePlots();
-        });
-        
-        [elements.formulaAmp, elements.formulaPhase, elements.formulaFreq].forEach(el => {
-            el.addEventListener('input', () => {
-                if (!elements.useFullFormula.checked) {
-                    buildFullFormula();
-                }
-                scheduleUpdate();
-            });
-        });
-
+        // Presets
         document.querySelectorAll('.preset-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const preset = presets[btn.dataset.preset];
@@ -1532,17 +1791,33 @@
                     elements.formulaAmp.value = preset.amp;
                     elements.formulaPhase.value = preset.phase;
                     elements.formulaFreq.value = preset.freq;
-                    buildFullFormula();
+                    // Reset views for new signal type
+                    viewState.time.dataRange = null;
+                    viewState.freq.dataRange = null;
+                    viewState.g1.dataRange = null;
                     updatePlots();
                 }
             });
         });
 
+        // Update button
         elements.updateBtn.addEventListener('click', updatePlots);
+
+        // Reset view buttons
+        document.querySelectorAll('.plot-control-btn[data-reset]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                resetView(btn.dataset.reset);
+            });
+        });
+
+        // Setup pan/zoom for all canvases
+        setupPanZoom(elements.timeCanvas, 'time');
+        setupPanZoom(elements.freqCanvas, 'freq');
+        setupPanZoom(elements.g1Canvas, 'g1');
 
         // Tooltips
         document.querySelectorAll('[data-tooltip]').forEach(el => {
-            el.addEventListener('mouseenter', () => {
+            el.addEventListener('mouseenter', (e) => {
                 const tooltip = elements.tooltip;
                 tooltip.textContent = el.dataset.tooltip;
                 tooltip.style.display = 'block';
@@ -1565,65 +1840,20 @@
             });
         });
 
+        // Window resize
         let resizeTimeout;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(updatePlots, 100);
         });
 
-        // Pan / zoom bindings (domainMin = 0 for freq & coherence)
-        attachPanZoom(
-            elements.timeCanvas,
-            () => viewState.time,
-            (r) => { viewState.time = r; },
-            undefined
-        );
-        attachPanZoom(
-            elements.freqCanvas,
-            () => viewState.freq,
-            (r) => { viewState.freq = r; },
-            0
-        );
-        attachPanZoom(
-            elements.cohCanvas,
-            () => viewState.coh,
-            (r) => { viewState.coh = r; },
-            0
-        );
-
-        // Initial lambda display
-        updateLambdaDisplay(parseFloat(paramInputs.fc.value));
-
-        // Initial full formula
-        buildFullFormula();
-
-        // Initial view ranges from inputs
-        viewState.time = { 
-            min: parseFloat(elements.tStart.value) || 0, 
-            max: parseFloat(elements.tEnd.value) || 5e-9 
-        };
-        viewState.freq = {
-            min: 0,
-            max: parseFloat(elements.freqRange.value) || 2e10
-        };
-
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        
+        updateWavelengthDisplay();
         updatePlots();
-
-        // === Minimal documentation (summary of changes) ===
-        // - Spectrum bug: now consistently uses data.params and no longer refers to the
-        //   global 'params' array in legend construction; spectrum is drawn based on
-        //   the same signal chosen for the time plot (field or power).
-        // - Units: internal parameters are in Hz and seconds; plots display time in ns
-        //   and frequency in GHz for readability.
-        // - Optical realism: fc defaults to ≈1.5e14 Hz (~2 µm). fm defaults to 5e9 Hz (5 GHz).
-        //   fc is used to compute λ and coherence length; by default s(t) is implemented
-        //   as an envelope (no explicit cos(2π·fc·t)) to keep sampling feasible.
-        // - Coherence: g1(τ) is computed as the normalized autocorrelation of the chosen
-        //   time-domain signal (field or |E|²), plotted in the third panel. Coherence time
-        //   τc is the 1/e crossing of |g1|, and coherence length Lc = c·τc.
-        // - Interaction: all three plots support mouse-drag panning (x-axis) and wheel
-        //   zooming, implemented purely by changing the displayed ranges; the underlying
-        //   time → FFT → frequency workflow is unchanged.
+        
     })();
     </script>
 </body>
