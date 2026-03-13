@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signal Modulation Visualizer</title>
+    <title>Optical Signal Modulation Visualizer</title>
     <style>
         * {
 
@@ -32,7 +32,7 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-            overflow: hidden;
+            overflow-y: auto;
         }
 
         .panel {
@@ -125,15 +125,15 @@
         }
 
         .param-label {
-            width: 110px;
-            min-width: 110px;
+            width: 130px;
+            min-width: 130px;
             font-size: 0.75rem;
             color: #aaa;
             cursor: help;
         }
 
         .param-input {
-            width: 60px;
+            width: 70px;
             padding: 3px 4px;
             border: 1px solid #0f3460;
             border-radius: 4px;
@@ -175,6 +175,13 @@
             background: #e94560;
             cursor: pointer;
             border: none;
+        }
+
+        .param-equiv {
+            font-size: 0.65rem;
+            color: #06b6d4;
+            min-width: 70px;
+            text-align: right;
         }
 
         .settings-grid {
@@ -252,6 +259,18 @@
             font-size: 0.65rem;
             color: #555;
             flex: 1;
+        }
+
+        .coherence-info {
+            background: #0f3460;
+            padding: 6px 8px;
+            border-radius: 4px;
+            margin-top: 6px;
+        }
+
+        .coherence-info .value {
+            color: #06b6d4;
+            font-weight: 600;
         }
 
         .plots {
@@ -340,7 +359,7 @@
         <!-- Formulas Panel -->
         <div class="panel">
             <div class="panel-title">Modulation Formulas</div>
-            <div class="formula-help">Variables: t, fc, fs, fm, Am, A0, beta, Math.*</div>
+            <div class="formula-help">Variables: t, fc, fs, fm, Am, A0, beta, Math.* (fc in THz, fm in GHz internally converted)</div>
             
             <div class="formula-row">
                 <label data-tooltip="Time-varying amplitude envelope.&#10;For AM: A0*(1 + Am*sin(2π·fm·t))">A(t):</label>
@@ -353,7 +372,7 @@
             </div>
             
             <div class="formula-row">
-                <label data-tooltip="Instantaneous frequency deviation.&#10;For FM: beta*fm*sin(2π·fm·t)">Δf(t) [Hz]:</label>
+                <label data-tooltip="Instantaneous frequency deviation.&#10;For FM: beta*fm*sin(2π·fm·t)">Δf(t) [GHz]:</label>
                 <input type="text" id="formula-freq" value="0">
             </div>
 
@@ -391,18 +410,20 @@
 
         <!-- Parameters Panel -->
         <div class="panel">
-            <div class="panel-title">Parameters</div>
+            <div class="panel-title">Optical Parameters</div>
             
             <div class="param-row">
-                <span class="param-label" data-tooltip="Carrier frequency in Hz.&#10;Central frequency of the modulated signal.">Carrier fc (Hz)</span>
-                <input type="number" class="param-input" id="param-fc" value="100" step="1">
-                <input type="range" class="param-slider" id="slider-fc" min="1" max="1000" value="100">
+                <span class="param-label" data-tooltip="Optical carrier frequency in THz.&#10;λ = c/f">Carrier fc (THz)</span>
+                <input type="number" class="param-input" id="param-fc" value="149.896" step="0.001">
+                <input type="range" class="param-slider" id="slider-fc" min="100" max="300" value="149.896" step="0.001">
+                <span class="param-equiv" id="equiv-wavelength">λ = 2000 nm</span>
             </div>
 
             <div class="param-row">
-                <span class="param-label" data-tooltip="Modulation frequency in Hz.&#10;Frequency of the modulating signal.">Mod Freq fm (Hz)</span>
-                <input type="number" class="param-input" id="param-fm" value="10" step="0.1">
-                <input type="range" class="param-slider" id="slider-fm" min="0.1" max="200" value="10" step="0.1">
+                <span class="param-label" data-tooltip="Modulation frequency in GHz.&#10;Frequency of the modulating signal.">Mod Freq fm (GHz)</span>
+                <input type="number" class="param-input" id="param-fm" value="5" step="0.1">
+                <input type="range" class="param-slider" id="slider-fm" min="0.1" max="50" value="5" step="0.1">
+                <span class="param-equiv" id="equiv-fm-period">T = 200 ps</span>
             </div>
 
             <div class="param-row">
@@ -424,9 +445,16 @@
             </div>
 
             <div class="param-row">
-                <span class="param-label" data-tooltip="Sampling rate in Hz.&#10;Must satisfy Nyquist: fs > 2·fc">Sample Rate fs</span>
-                <input type="number" class="param-input" id="param-fs" value="10000" step="100">
-                <input type="range" class="param-slider" id="slider-fs" min="1000" max="50000" value="10000" step="100">
+                <span class="param-label" data-tooltip="Simulation sampling rate in GHz.&#10;Must satisfy Nyquist: fs > 2·fm">Sample Rate fs (GHz)</span>
+                <input type="number" class="param-input" id="param-fs" value="100" step="1">
+                <input type="range" class="param-slider" id="slider-fs" min="10" max="500" value="100" step="1">
+            </div>
+
+            <div class="param-row">
+                <span class="param-label" data-tooltip="Linewidth of the optical source in MHz.&#10;Determines coherence time: τc ≈ 1/(π·Δν)">Linewidth Δν (MHz)</span>
+                <input type="number" class="param-input" id="param-linewidth" value="1" step="0.1">
+                <input type="range" class="param-slider" id="slider-linewidth" min="0.01" max="100" value="1" step="0.01">
+                <span class="param-equiv" id="equiv-coherence">τc ≈ 318 ns</span>
             </div>
         </div>
 
@@ -435,20 +463,24 @@
             <div class="panel-title">Display Settings</div>
             <div class="settings-grid">
                 <div class="setting-group">
-                    <label data-tooltip="Start time in seconds.">t Start (s):</label>
-                    <input type="number" id="t-start" value="0" step="0.01">
+                    <label data-tooltip="Start time in nanoseconds.">t Start (ns):</label>
+                    <input type="number" id="t-start" value="0" step="0.1">
                 </div>
                 <div class="setting-group">
-                    <label data-tooltip="End time in seconds.&#10;Longer = higher freq resolution.">t End (s):</label>
-                    <input type="number" id="t-end" value="0.5" step="0.01">
+                    <label data-tooltip="End time in nanoseconds.&#10;Longer = higher freq resolution.">t End (ns):</label>
+                    <input type="number" id="t-end" value="2" step="0.1">
                 </div>
                 <div class="setting-group">
-                    <label data-tooltip="Max frequency in spectrum plot.">Freq Max (Hz):</label>
-                    <input type="number" id="freq-range" value="500" step="10">
+                    <label data-tooltip="Max frequency in spectrum plot (GHz).">Freq Max (GHz):</label>
+                    <input type="number" id="freq-range" value="25" step="1">
                 </div>
                 <div class="setting-group">
                     <label data-tooltip="FFT size. 0 = auto high-res.">NFFT:</label>
                     <input type="number" id="nfft" value="0" step="1024">
+                </div>
+                <div class="setting-group">
+                    <label data-tooltip="Max lag for g₁(τ) in nanoseconds.">g₁ Max τ (ns):</label>
+                    <input type="number" id="g1-max-tau" value="1" step="0.1">
                 </div>
             </div>
         </div>
@@ -483,6 +515,26 @@
                     <input type="checkbox" id="log-scale">
                     <span data-tooltip="Spectrum in dB scale.">Log (dB)</span>
                 </label>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="show-phase-noise" checked>
+                    <span data-tooltip="Include phase noise from linewidth.">Phase Noise</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Coherence Info Panel -->
+        <div class="panel">
+            <div class="panel-title">Coherence Analysis</div>
+            <div class="coherence-info" id="coherence-info">
+                <div style="font-size: 0.75rem; margin-bottom: 4px;">
+                    Theoretical τ<sub>c</sub>: <span class="value" id="theoretical-tc">318 ns</span>
+                </div>
+                <div style="font-size: 0.75rem; margin-bottom: 4px;">
+                    Measured τ<sub>c</sub> (1/e): <span class="value" id="measured-tc">--</span>
+                </div>
+                <div style="font-size: 0.75rem;">
+                    Coherence Length: <span class="value" id="coherence-length">--</span>
+                </div>
             </div>
         </div>
 
@@ -502,7 +554,7 @@
     <div class="plots">
         <div class="plot-container">
             <div class="plot-header">
-                <div class="plot-title">Time Domain</div>
+                <div class="plot-title">Time Domain (Baseband)</div>
                 <div class="legend" id="time-legend"></div>
             </div>
             <div class="plot-canvas-wrapper">
@@ -512,11 +564,21 @@
 
         <div class="plot-container">
             <div class="plot-header">
-                <div class="plot-title">Frequency Spectrum</div>
+                <div class="plot-title">Frequency Spectrum (Relative to Carrier)</div>
                 <div class="legend" id="freq-legend"></div>
             </div>
             <div class="plot-canvas-wrapper">
                 <canvas class="plot-canvas" id="freq-canvas"></canvas>
+            </div>
+        </div>
+
+        <div class="plot-container">
+            <div class="plot-header">
+                <div class="plot-title">First-Order Correlation g₁(τ)</div>
+                <div class="legend" id="g1-legend"></div>
+            </div>
+            <div class="plot-canvas-wrapper">
+                <canvas class="plot-canvas" id="g1-canvas"></canvas>
             </div>
         </div>
     </div>
@@ -526,6 +588,8 @@
     <script>
     (function() {
         'use strict';
+
+        const c = 299792458; // Speed of light in m/s
 
         // === FFT Implementation (Cooley-Tukey) ===
         function fft(real, imag) {
@@ -595,23 +659,33 @@
             tEnd: document.getElementById('t-end'),
             freqRange: document.getElementById('freq-range'),
             nfft: document.getElementById('nfft'),
+            g1MaxTau: document.getElementById('g1-max-tau'),
             logScale: document.getElementById('log-scale'),
             showEnvelope: document.getElementById('show-envelope'),
             showCarrier: document.getElementById('show-carrier'),
             showModSignal: document.getElementById('show-mod-signal'),
             showPhase: document.getElementById('show-phase'),
             showPower: document.getElementById('show-power'),
+            showPhaseNoise: document.getElementById('show-phase-noise'),
             autoUpdate: document.getElementById('auto-update'),
             updateBtn: document.getElementById('update-btn'),
             infoText: document.getElementById('info-text'),
             timeCanvas: document.getElementById('time-canvas'),
             freqCanvas: document.getElementById('freq-canvas'),
+            g1Canvas: document.getElementById('g1-canvas'),
             timeLegend: document.getElementById('time-legend'),
             freqLegend: document.getElementById('freq-legend'),
-            tooltip: document.getElementById('tooltip')
+            g1Legend: document.getElementById('g1-legend'),
+            tooltip: document.getElementById('tooltip'),
+            equivWavelength: document.getElementById('equiv-wavelength'),
+            equivFmPeriod: document.getElementById('equiv-fm-period'),
+            equivCoherence: document.getElementById('equiv-coherence'),
+            theoreticalTc: document.getElementById('theoretical-tc'),
+            measuredTc: document.getElementById('measured-tc'),
+            coherenceLength: document.getElementById('coherence-length')
         };
 
-        const params = ['fc', 'fm', 'A0', 'Am', 'beta', 'fs'];
+        const params = ['fc', 'fm', 'A0', 'Am', 'beta', 'fs', 'linewidth'];
         const paramInputs = {};
         const paramSliders = {};
 
@@ -620,7 +694,7 @@
             paramSliders[p] = document.getElementById(`slider-${p}`);
         });
 
-        // === Presets ===
+        // === Presets (adapted for GHz modulation) ===
         const presets = {
             am: {
                 amp: 'A0 * (1 + Am * Math.sin(2*Math.PI*fm*t))',
@@ -645,10 +719,10 @@
             chirp: {
                 amp: 'A0',
                 phase: '0',
-                freq: 'beta * 100 * t'
+                freq: 'beta * 10 * t'  // 10 GHz/ns chirp rate
             },
             pulse: {
-                amp: 'A0 * Math.exp(-Math.pow((t-0.25)/0.05, 2))',
+                amp: 'A0 * Math.exp(-Math.pow((t-1)/0.2, 2))',  // Gaussian pulse centered at 1ns
                 phase: '0',
                 freq: '0'
             }
@@ -657,9 +731,39 @@
         // === State ===
         let updateTimeout = null;
 
+        // === Utility Functions ===
+        function freqToWavelength(freqTHz) {
+            // freq in THz, wavelength in nm
+            return (c / (freqTHz * 1e12)) * 1e9;
+        }
+
+        function updateEquivalentDisplays() {
+            const fcTHz = parseFloat(paramInputs.fc.value) || 149.896;
+            const fmGHz = parseFloat(paramInputs.fm.value) || 5;
+            const linewidthMHz = parseFloat(paramInputs.linewidth.value) || 1;
+            
+            const wavelengthNm = freqToWavelength(fcTHz);
+            elements.equivWavelength.textContent = `λ = ${wavelengthNm.toFixed(1)} nm`;
+            
+            const periodPs = 1000 / fmGHz;  // period in ps
+            elements.equivFmPeriod.textContent = `T = ${periodPs.toFixed(1)} ps`;
+            
+            // Coherence time τc ≈ 1/(π·Δν) for Lorentzian lineshape
+            const tcNs = 1e3 / (Math.PI * linewidthMHz);  // in ns
+            if (tcNs > 1000) {
+                elements.equivCoherence.textContent = `τc ≈ ${(tcNs/1000).toFixed(2)} μs`;
+            } else {
+                elements.equivCoherence.textContent = `τc ≈ ${tcNs.toFixed(1)} ns`;
+            }
+            
+            elements.theoreticalTc.textContent = tcNs > 1000 ? 
+                `${(tcNs/1000).toFixed(2)} μs` : `${tcNs.toFixed(1)} ns`;
+        }
+
         // === Formula Evaluation ===
         function evalFormula(formula, t, params) {
             try {
+                // t is in ns, fm is in GHz (so fm*t is in cycles)
                 const func = new Function('t', 'fc', 'fs', 'fm', 'Am', 'A0', 'beta', 'Math',
                     `"use strict"; return ${formula};`);
                 
@@ -679,72 +783,95 @@
             }
         }
 
-function buildFullFormula() {
-    const ampFormula = elements.formulaAmp.value.trim();
-    const phaseFormula = elements.formulaPhase.value.trim();
-    const freqFormula = elements.formulaFreq.value.trim();
-    
-    let fullFormula;
-    
-    if (freqFormula === '0' && phaseFormula === '0') {
-        fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t)`;
-    } else if (freqFormula === '0') {
-        fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t + (${phaseFormula}))`;
-    } else {
-        // Note: freqPhase requires integration, shown as placeholder
-        fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t + (${phaseFormula}) + freqPhase)`;
-    }
-    
-    // Only update if not using full formula mode
-    if (!elements.useFullFormula.checked) {
-        elements.formulaFull.value = fullFormula;
-    }
-}
-
-function evalFullFormula(formula, t, params, freqPhase) {
-    try {
-        const func = new Function('t', 'fc', 'fs', 'fm', 'Am', 'A0', 'beta', 'freqPhase', 'Math',
-            `"use strict"; return ${formula};`);
-        
-        if (Array.isArray(t)) {
-            return t.map((ti, i) => {
-                const fp = Array.isArray(freqPhase) ? freqPhase[i] : freqPhase;
-                const result = func(ti, params.fc, params.fs, params.fm, 
-                                   params.Am, params.A0, params.beta, fp, Math);
-                return isFinite(result) ? result : 0;
-            });
+        function buildFullFormula() {
+            const ampFormula = elements.formulaAmp.value.trim();
+            const phaseFormula = elements.formulaPhase.value.trim();
+            const freqFormula = elements.formulaFreq.value.trim();
+            
+            let fullFormula;
+            
+            if (freqFormula === '0' && phaseFormula === '0') {
+                fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t)`;
+            } else if (freqFormula === '0') {
+                fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t + (${phaseFormula}))`;
+            } else {
+                fullFormula = `(${ampFormula}) * Math.cos(2*Math.PI*fc*t + (${phaseFormula}) + freqPhase)`;
+            }
+            
+            if (!elements.useFullFormula.checked) {
+                elements.formulaFull.value = fullFormula;
+            }
         }
-        return 0;
-    } catch (e) {
-        console.error('Full formula error:', e);
-        return Array.isArray(t) ? t.map(() => 0) : 0;
-    }
-}
+
+        function evalFullFormula(formula, t, params, freqPhase) {
+            try {
+                const func = new Function('t', 'fc', 'fs', 'fm', 'Am', 'A0', 'beta', 'freqPhase', 'Math',
+                    `"use strict"; return ${formula};`);
+                
+                if (Array.isArray(t)) {
+                    return t.map((ti, i) => {
+                        const fp = Array.isArray(freqPhase) ? freqPhase[i] : freqPhase;
+                        const result = func(ti, params.fc, params.fs, params.fm, 
+                                           params.Am, params.A0, params.beta, fp, Math);
+                        return isFinite(result) ? result : 0;
+                    });
+                }
+                return 0;
+            } catch (e) {
+                console.error('Full formula error:', e);
+                return Array.isArray(t) ? t.map(() => 0) : 0;
+            }
+        }
+
         function getParams() {
             return {
-                fc: parseFloat(paramInputs.fc.value) || 100,
-                fm: parseFloat(paramInputs.fm.value) || 10,
+                fc: parseFloat(paramInputs.fc.value) || 149.896,      // THz
+                fm: parseFloat(paramInputs.fm.value) || 5,            // GHz
                 A0: parseFloat(paramInputs.A0.value) || 1,
                 Am: parseFloat(paramInputs.Am.value) || 0.5,
                 beta: parseFloat(paramInputs.beta.value) || 1,
-                fs: parseFloat(paramInputs.fs.value) || 10000
+                fs: parseFloat(paramInputs.fs.value) || 100,          // GHz
+                linewidth: parseFloat(paramInputs.linewidth.value) || 1  // MHz
             };
+        }
+
+        // Generate phase noise based on Wiener process for Lorentzian lineshape
+        function generatePhaseNoise(numSamples, linewidthMHz, fsGHz) {
+            const phaseNoise = new Float64Array(numSamples);
+            // Δν (linewidth) relates to phase diffusion coefficient D = π·Δν
+            // Phase variance grows as <Δφ²> = 2D·t
+            // For discrete steps: σ² = 2·π·Δν·Δt
+            const dt = 1 / fsGHz;  // in ns
+            const deltaNU = linewidthMHz * 1e-3;  // Convert MHz to GHz for consistency
+            const sigma = Math.sqrt(2 * Math.PI * deltaNU * dt);
+            
+            let phase = 0;
+            for (let i = 0; i < numSamples; i++) {
+                // Box-Muller transform for Gaussian random numbers
+                const u1 = Math.random();
+                const u2 = Math.random();
+                const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+                phase += sigma * z;
+                phaseNoise[i] = phase;
+            }
+            return phaseNoise;
         }
 
         function generateSignal() {
             const p = getParams();
-            const tStart = parseFloat(elements.tStart.value) || 0;
-            const tEnd = parseFloat(elements.tEnd.value) || 0.5;
-            const fs = p.fs;
-        
-            const numSamples = Math.floor((tEnd - tStart) * fs);
+            const tStartNs = parseFloat(elements.tStart.value) || 0;
+            const tEndNs = parseFloat(elements.tEnd.value) || 2;
+            const fsGHz = p.fs;
+            
+            // Time in nanoseconds, sampling at fsGHz (samples per ns)
+            const numSamples = Math.floor((tEndNs - tStartNs) * fsGHz);
             if (numSamples <= 0 || numSamples > 1000000) {
                 return null;
             }
         
             const t = new Float64Array(numSamples);
             for (let i = 0; i < numSamples; i++) {
-                t[i] = tStart + i / fs;
+                t[i] = tStartNs + i / fsGHz;
             }
         
             const tArray = Array.from(t);
@@ -752,59 +879,70 @@ function evalFullFormula(formula, t, params, freqPhase) {
             let amplitude;
             let phase;
         
-            // Calculate frequency phase (integration of freq offset) - needed for both modes
-            let freqOffset = evalFormula(elements.formulaFreq.value, tArray, p);
+            // For baseband simulation, we use a normalized carrier frequency
+            // The actual optical frequency is just a label
+            const fcSim = 10;  // Simulation carrier in GHz (for visible oscillations)
+            const simParams = { ...p, fc: fcSim };
+        
+            // Calculate frequency phase (integration of freq offset)
+            let freqOffset = evalFormula(elements.formulaFreq.value, tArray, simParams);
             if (!Array.isArray(freqOffset)) freqOffset = tArray.map(() => freqOffset);
             
             const freqPhase = new Float64Array(numSamples);
             let cumPhase = 0;
+            const dt = 1 / fsGHz;  // Time step in ns
             for (let i = 0; i < numSamples; i++) {
+                // freqOffset is in GHz, dt is in ns, so freqOffset * dt gives cycles
                 if (freqOffset[i] !== 0) {
-                    cumPhase += 2 * Math.PI * freqOffset[i] / fs;
+                    cumPhase += 2 * Math.PI * freqOffset[i] * dt;
                 }
                 freqPhase[i] = cumPhase;
             }
         
+            // Generate phase noise if enabled
+            let phaseNoise = new Float64Array(numSamples);
+            if (elements.showPhaseNoise.checked && p.linewidth > 0) {
+                phaseNoise = generatePhaseNoise(numSamples, p.linewidth, fsGHz);
+            }
+        
             if (elements.useFullFormula.checked) {
-                // Use full formula directly
-                signal = evalFullFormula(elements.formulaFull.value, tArray, p, Array.from(freqPhase));
+                signal = evalFullFormula(elements.formulaFull.value, tArray, simParams, Array.from(freqPhase));
                 if (!Array.isArray(signal)) signal = tArray.map(() => signal);
                 signal = new Float64Array(signal);
-                
-                // Estimate envelope from signal peaks (simple approach)
                 amplitude = signal.map(Math.abs);
                 phase = freqPhase;
             } else {
-                // Build from components
-                amplitude = evalFormula(elements.formulaAmp.value, tArray, p);
-                phase = evalFormula(elements.formulaPhase.value, tArray, p);
+                amplitude = evalFormula(elements.formulaAmp.value, tArray, simParams);
+                phase = evalFormula(elements.formulaPhase.value, tArray, simParams);
         
                 if (!Array.isArray(amplitude)) amplitude = tArray.map(() => amplitude);
                 if (!Array.isArray(phase)) phase = tArray.map(() => phase);
         
                 signal = new Float64Array(numSamples);
                 for (let i = 0; i < numSamples; i++) {
-                    signal[i] = amplitude[i] * Math.cos(2 * Math.PI * p.fc * t[i] + phase[i] + freqPhase[i]);
+                    const totalPhase = 2 * Math.PI * fcSim * t[i] + phase[i] + freqPhase[i] + phaseNoise[i];
+                    signal[i] = amplitude[i] * Math.cos(totalPhase);
                 }
                 
-                // Update full formula display
                 buildFullFormula();
             }
         
-            const carrier = tArray.map(ti => p.A0 * Math.cos(2 * Math.PI * p.fc * ti));
+            const carrier = tArray.map(ti => p.A0 * Math.cos(2 * Math.PI * fcSim * ti));
             const modSignal = tArray.map(ti => p.Am * Math.sin(2 * Math.PI * p.fm * ti));
             const power = signal.map(s => s * s);
 
-            return { t, signal, amplitude, phase, carrier, modSignal, power, params: p, tStart, tEnd };
-
+            return { 
+                t, signal, amplitude, phase, carrier, modSignal, power, phaseNoise,
+                params: p, simParams, tStart: tStartNs, tEnd: tEndNs 
+            };
         }
         
-        function computeSpectrum(t, signal, fs) {
+        function computeSpectrum(t, signal, fsGHz) {
             const n = signal.length;
             let nfft = parseInt(elements.nfft.value) || 0;
             
             if (nfft <= 0) {
-                nfft = Math.max(nextPowerOf2(n) * 8, 65536);
+                nfft = Math.max(nextPowerOf2(n) * 4, 16384);
             } else {
                 nfft = nextPowerOf2(nfft);
             }
@@ -827,11 +965,59 @@ function evalFullFormula(formula, t, params, freqPhase) {
             const magnitude = new Float64Array(numPositive);
 
             for (let i = 0; i < numPositive; i++) {
-                freqs[i] = i * fs / nfft;
+                freqs[i] = i * fsGHz / nfft;  // Frequency in GHz
                 magnitude[i] = 2 * Math.sqrt(real[i] * real[i] + imag[i] * imag[i]) / windowSum;
             }
 
             return { freqs, magnitude, nfft };
+        }
+
+        // Compute g1 correlation function
+        function computeG1(signal, maxLagSamples, fsGHz) {
+            const n = signal.length;
+            const numLags = Math.min(maxLagSamples, Math.floor(n / 2));
+            
+            const g1Magnitude = new Float64Array(numLags);
+            const tauValues = new Float64Array(numLags);
+            
+            // Compute mean power for normalization
+            let power = 0;
+            for (let i = 0; i < n; i++) {
+                power += signal[i] * signal[i];
+            }
+            power /= n;
+            
+            // Compute autocorrelation for each lag
+            for (let lag = 0; lag < numLags; lag++) {
+                let sumReal = 0;
+                const count = n - lag;
+                
+                for (let i = 0; i < count; i++) {
+                    sumReal += signal[i] * signal[i + lag];
+                }
+                
+                // Normalize
+                g1Magnitude[lag] = Math.abs(sumReal / count / power);
+                tauValues[lag] = lag / fsGHz;  // τ in ns
+            }
+            
+            // Find coherence time (where |g1| drops to 1/e)
+            let coherenceTimeNs = null;
+            const threshold = 1 / Math.E;
+            
+            for (let i = 1; i < numLags; i++) {
+                if (g1Magnitude[i] <= threshold && g1Magnitude[i-1] > threshold) {
+                    // Linear interpolation
+                    const t1 = tauValues[i-1];
+                    const t2 = tauValues[i];
+                    const g1 = g1Magnitude[i-1];
+                    const g2 = g1Magnitude[i];
+                    coherenceTimeNs = t1 + (threshold - g1) * (t2 - t1) / (g2 - g1);
+                    break;
+                }
+            }
+            
+            return { tauValues, g1Magnitude, coherenceTimeNs };
         }
 
         function setupCanvas(canvas) {
@@ -848,7 +1034,7 @@ function evalFullFormula(formula, t, params, freqPhase) {
 
         function plotTimeDomain(data, showPower = false) {
             const { ctx, width, height } = setupCanvas(elements.timeCanvas);
-            const margin = { top: 10, right: 15, bottom: 32, left: 50 };
+            const margin = { top: 10, right: 15, bottom: 32, left: 55 };
             const plotWidth = width - margin.left - margin.right;
             const plotHeight = height - margin.top - margin.bottom;
         
@@ -859,13 +1045,11 @@ function evalFullFormula(formula, t, params, freqPhase) {
         
             const { t, signal, amplitude, phase, carrier, modSignal, power, tStart, tEnd, params } = data;
             
-            // Select what to plot
             const mainSignal = showPower ? power : signal;
             const mainLabel = showPower ? 'Power |E|²' : 'Signal';
         
-            // Calculate actual data range
             let dataMax = Math.max(...mainSignal.map(Math.abs));
-            let dataMin = showPower ? 0 : -dataMax;  // Power is always positive
+            let dataMin = showPower ? 0 : -dataMax;
             
             if (!showPower) {
                 if (elements.showEnvelope.checked) {
@@ -890,8 +1074,6 @@ function evalFullFormula(formula, t, params, freqPhase) {
         
             const scaleX = (val) => margin.left + (val - tStart) / (tEnd - tStart) * plotWidth;
             const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
-        
-            // ... [grid and axis drawing code stays the same] ...
         
             // Grid
             ctx.strokeStyle = '#0f3460';
@@ -930,9 +1112,9 @@ function evalFullFormula(formula, t, params, freqPhase) {
             for (let i = 0; i <= 8; i++) {
                 const tVal = tStart + (i / 8) * (tEnd - tStart);
                 const x = margin.left + (i / 8) * plotWidth;
-                ctx.fillText((tVal * 1000).toFixed(1), x, height - margin.bottom + 12);
+                ctx.fillText(tVal.toFixed(2), x, height - margin.bottom + 12);
             }
-            ctx.fillText('Time (ms)', margin.left + plotWidth / 2, height - 4);
+            ctx.fillText('Time (ns)', margin.left + plotWidth / 2, height - 4);
         
             ctx.textAlign = 'right';
             for (let i = 0; i <= 5; i++) {
@@ -964,7 +1146,6 @@ function evalFullFormula(formula, t, params, freqPhase) {
             const legendItems = [];
         
             if (!showPower) {
-                // Only show these in field mode
                 if (elements.showCarrier.checked) {
                     plotLine(carrier, '#22c55e', 0.7);
                     legendItems.push({ color: '#22c55e', label: 'Carrier' });
@@ -983,7 +1164,6 @@ function evalFullFormula(formula, t, params, freqPhase) {
                 }
             }
         
-            // Main signal (field or power)
             plotLine(mainSignal, showPower ? '#f59e0b' : '#3b82f6', 1);
             legendItems.push({ color: showPower ? '#f59e0b' : '#3b82f6', label: mainLabel });
         
@@ -1000,34 +1180,29 @@ function evalFullFormula(formula, t, params, freqPhase) {
 
         function plotFrequencyDomain(data, spectrum, showPower = false) {
             const { ctx, width, height } = setupCanvas(elements.freqCanvas);
-            const margin = { top: 10, right: 15, bottom: 32, left: 50 };
+            const margin = { top: 10, right: 15, bottom: 32, left: 55 };
             const plotWidth = width - margin.left - margin.right;
             const plotHeight = height - margin.top - margin.bottom;
 
-            const spectrumLabel = showPower ? 'Power Spectrum' : 'Spectrum';
-    
-            elements.freqLegend.innerHTML = `
-                <div class="legend-item"><div class="legend-color" style="background:${showPower ? '#f59e0b' : '#3b82f6'}"></div><span>${spectrumLabel}</span></div>
-                <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div><span>fc=${params.fc}Hz</span></div>
-                <div class="legend-item"><div class="legend-color" style="background:#22c55e"></div><span>fc±fm</span></div>
-            `;
-
-            ctx.strokeStyle = showPower ? '#f59e0b' : '#3b82f6';
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, width, height);
 
             if (!data || !spectrum) return;
 
-            const { params } = data;
+            // FIX: Extract params BEFORE using it
+            const { params, simParams } = data;
             const { freqs, magnitude } = spectrum;
-            const maxFreq = parseFloat(elements.freqRange.value) || 500;
+            const maxFreqGHz = parseFloat(elements.freqRange.value) || 25;
             const logScale = elements.logScale.checked;
+
+            const spectrumLabel = showPower ? 'Power Spectrum' : 'Spectrum';
+            const fcSim = simParams.fc;  // Simulation carrier frequency
 
             const filteredFreqs = [];
             const filteredMag = [];
             
             for (let i = 0; i < freqs.length; i++) {
-                if (freqs[i] <= maxFreq) {
+                if (freqs[i] <= maxFreqGHz) {
                     filteredFreqs.push(freqs[i]);
                     filteredMag.push(logScale ? 20 * Math.log10(magnitude[i] + 1e-12) : magnitude[i]);
                 }
@@ -1043,7 +1218,7 @@ function evalFullFormula(formula, t, params, freqPhase) {
                 yMax = Math.max(...filteredMag) * 1.1 || 1;
             }
 
-            const scaleX = (val) => margin.left + (val / maxFreq) * plotWidth;
+            const scaleX = (val) => margin.left + (val / maxFreqGHz) * plotWidth;
             const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
 
             // Grid
@@ -1081,11 +1256,11 @@ function evalFullFormula(formula, t, params, freqPhase) {
             ctx.textAlign = 'center';
             
             for (let i = 0; i <= 8; i++) {
-                const fVal = (i / 8) * maxFreq;
+                const fVal = (i / 8) * maxFreqGHz;
                 const x = margin.left + (i / 8) * plotWidth;
-                ctx.fillText(fVal.toFixed(0), x, height - margin.bottom + 12);
+                ctx.fillText(fVal.toFixed(1), x, height - margin.bottom + 12);
             }
-            ctx.fillText('Frequency (Hz)', margin.left + plotWidth / 2, height - 4);
+            ctx.fillText('Frequency (GHz)', margin.left + plotWidth / 2, height - 4);
 
             ctx.textAlign = 'right';
             for (let i = 0; i <= 5; i++) {
@@ -1094,14 +1269,14 @@ function evalFullFormula(formula, t, params, freqPhase) {
                 ctx.fillText(logScale ? yVal.toFixed(0) : yVal.toFixed(2), margin.left - 4, y + 3);
             }
 
-            // Carrier marker
-            if (params.fc <= maxFreq) {
+            // Carrier marker (simulation carrier)
+            if (fcSim <= maxFreqGHz) {
                 ctx.strokeStyle = '#ef4444';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([4, 2]);
                 ctx.beginPath();
-                ctx.moveTo(scaleX(params.fc), margin.top);
-                ctx.lineTo(scaleX(params.fc), height - margin.bottom);
+                ctx.moveTo(scaleX(fcSim), margin.top);
+                ctx.lineTo(scaleX(fcSim), height - margin.bottom);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
@@ -1110,22 +1285,22 @@ function evalFullFormula(formula, t, params, freqPhase) {
             ctx.strokeStyle = '#22c55e';
             ctx.lineWidth = 0.7;
             ctx.setLineDash([2, 2]);
-            if (params.fc - params.fm > 0 && params.fc - params.fm <= maxFreq) {
+            if (fcSim - params.fm > 0 && fcSim - params.fm <= maxFreqGHz) {
                 ctx.beginPath();
-                ctx.moveTo(scaleX(params.fc - params.fm), margin.top);
-                ctx.lineTo(scaleX(params.fc - params.fm), height - margin.bottom);
+                ctx.moveTo(scaleX(fcSim - params.fm), margin.top);
+                ctx.lineTo(scaleX(fcSim - params.fm), height - margin.bottom);
                 ctx.stroke();
             }
-            if (params.fc + params.fm <= maxFreq) {
+            if (fcSim + params.fm <= maxFreqGHz) {
                 ctx.beginPath();
-                ctx.moveTo(scaleX(params.fc + params.fm), margin.top);
-                ctx.lineTo(scaleX(params.fc + params.fm), height - margin.bottom);
+                ctx.moveTo(scaleX(fcSim + params.fm), margin.top);
+                ctx.lineTo(scaleX(fcSim + params.fm), height - margin.bottom);
                 ctx.stroke();
             }
             ctx.setLineDash([]);
 
             // Spectrum
-            ctx.strokeStyle = '#3b82f6';
+            ctx.strokeStyle = showPower ? '#f59e0b' : '#3b82f6';
             ctx.lineWidth = 1;
             ctx.beginPath();
             for (let i = 0; i < filteredFreqs.length; i++) {
@@ -1140,9 +1315,142 @@ function evalFullFormula(formula, t, params, freqPhase) {
             ctx.stroke();
 
             elements.freqLegend.innerHTML = `
-                <div class="legend-item"><div class="legend-color" style="background:#3b82f6"></div><span>Spectrum</span></div>
-                <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div><span>fc=${params.fc}Hz</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:${showPower ? '#f59e0b' : '#3b82f6'}"></div><span>${spectrumLabel}</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:#ef4444"></div><span>fc(sim)=${fcSim}GHz</span></div>
                 <div class="legend-item"><div class="legend-color" style="background:#22c55e"></div><span>fc±fm</span></div>
+            `;
+        }
+
+        function plotG1(data, g1Data) {
+            const { ctx, width, height } = setupCanvas(elements.g1Canvas);
+            const margin = { top: 10, right: 15, bottom: 32, left: 55 };
+            const plotWidth = width - margin.left - margin.right;
+            const plotHeight = height - margin.top - margin.bottom;
+
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, width, height);
+
+            if (!data || !g1Data) return;
+
+            const { tauValues, g1Magnitude, coherenceTimeNs } = g1Data;
+            const maxTau = tauValues[tauValues.length - 1];
+
+            const yMin = 0;
+            const yMax = 1.1;
+
+            const scaleX = (val) => margin.left + (val / maxTau) * plotWidth;
+            const scaleY = (val) => margin.top + (1 - (val - yMin) / (yMax - yMin)) * plotHeight;
+
+            // Grid
+            ctx.strokeStyle = '#0f3460';
+            ctx.lineWidth = 0.5;
+            
+            for (let i = 0; i <= 5; i++) {
+                const y = margin.top + (i / 5) * plotHeight;
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(width - margin.right, y);
+                ctx.stroke();
+            }
+
+            for (let i = 0; i <= 8; i++) {
+                const x = margin.left + (i / 8) * plotWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, height - margin.bottom);
+                ctx.stroke();
+            }
+
+            // 1/e threshold line
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            const thresholdY = scaleY(1 / Math.E);
+            ctx.moveTo(margin.left, thresholdY);
+            ctx.lineTo(width - margin.right, thresholdY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Coherence time marker
+            if (coherenceTimeNs !== null && coherenceTimeNs <= maxTau) {
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 2]);
+                ctx.beginPath();
+                ctx.moveTo(scaleX(coherenceTimeNs), margin.top);
+                ctx.lineTo(scaleX(coherenceTimeNs), height - margin.bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Axes
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, height - margin.bottom);
+            ctx.lineTo(width - margin.right, height - margin.bottom);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#666';
+            ctx.font = '10px system-ui';
+            ctx.textAlign = 'center';
+            
+            for (let i = 0; i <= 8; i++) {
+                const tauVal = (i / 8) * maxTau;
+                const x = margin.left + (i / 8) * plotWidth;
+                ctx.fillText(tauVal.toFixed(2), x, height - margin.bottom + 12);
+            }
+            ctx.fillText('τ (ns)', margin.left + plotWidth / 2, height - 4);
+
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 5; i++) {
+                const yVal = yMax - (i / 5) * (yMax - yMin);
+                const y = margin.top + (i / 5) * plotHeight;
+                ctx.fillText(yVal.toFixed(2), margin.left - 4, y + 3);
+            }
+
+            // Plot g1
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let i = 0; i < tauValues.length; i++) {
+                const x = scaleX(tauValues[i]);
+                const y = scaleY(Math.min(g1Magnitude[i], yMax));
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            // Update coherence info display
+            if (coherenceTimeNs !== null) {
+                const tcDisplay = coherenceTimeNs > 1000 ? 
+                    `${(coherenceTimeNs/1000).toFixed(3)} μs` : `${coherenceTimeNs.toFixed(3)} ns`;
+                elements.measuredTc.textContent = tcDisplay;
+                
+                // Coherence length = c * τc
+                const coherenceLengthM = c * coherenceTimeNs * 1e-9;
+                if (coherenceLengthM > 1) {
+                    elements.coherenceLength.textContent = `${coherenceLengthM.toFixed(2)} m`;
+                } else if (coherenceLengthM > 0.001) {
+                    elements.coherenceLength.textContent = `${(coherenceLengthM * 100).toFixed(2)} cm`;
+                } else {
+                    elements.coherenceLength.textContent = `${(coherenceLengthM * 1000).toFixed(2)} mm`;
+                }
+            } else {
+                elements.measuredTc.textContent = '> max τ';
+                elements.coherenceLength.textContent = '--';
+            }
+
+            elements.g1Legend.innerHTML = `
+                <div class="legend-item"><div class="legend-color" style="background:#06b6d4"></div><span>|g₁(τ)|</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:#e94560"></div><span>1/e threshold</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:#22c55e"></div><span>τc</span></div>
             `;
         }
         
@@ -1150,6 +1458,8 @@ function evalFullFormula(formula, t, params, freqPhase) {
             const startTime = performance.now();
             
             try {
+                updateEquivalentDisplays();
+                
                 const data = generateSignal();
                 
                 if (!data) {
@@ -1158,24 +1468,28 @@ function evalFullFormula(formula, t, params, freqPhase) {
                 }
         
                 const showPower = elements.showPower.checked;
-                
-                // Choose what to plot and analyze
                 const plotSignal = showPower ? data.power : data.signal;
-                const plotLabel = showPower ? 'Power |E|²' : 'Signal';
                 
-                // Compute spectrum of the selected signal
                 const spectrum = computeSpectrum(data.t, plotSignal, data.params.fs);
+                
+                // Compute g1 correlation
+                const maxTauNs = parseFloat(elements.g1MaxTau.value) || 1;
+                const maxLagSamples = Math.floor(maxTauNs * data.params.fs);
+                const g1Data = computeG1(data.signal, maxLagSamples, data.params.fs);
                 
                 plotTimeDomain(data, showPower);
                 plotFrequencyDomain(data, spectrum, showPower);
+                plotG1(data, g1Data);
         
                 const elapsed = (performance.now() - startTime).toFixed(0);
-                const freqRes = (data.params.fs / spectrum.nfft).toFixed(3);
+                const freqRes = (data.params.fs / spectrum.nfft * 1000).toFixed(1);  // MHz resolution
                 const mode = showPower ? ' [Power]' : ' [Field]';
-                elements.infoText.textContent = `${data.t.length} pts | NFFT ${spectrum.nfft} | Δf=${freqRes}Hz | ${elapsed}ms${mode}`;
+                const wavelength = freqToWavelength(data.params.fc).toFixed(1);
+                elements.infoText.textContent = `${data.t.length} pts | Δf=${freqRes}MHz | λ=${wavelength}nm | ${elapsed}ms${mode}`;
                     
             } catch (e) {
                 elements.infoText.textContent = `Error: ${e.message}`;
+                console.error(e);
             }
         }
 
@@ -1188,24 +1502,26 @@ function evalFullFormula(formula, t, params, freqPhase) {
         // === Event Listeners ===
         params.forEach(p => {
             paramSliders[p].addEventListener('input', () => {
-                paramInputs[p].value = parseFloat(paramSliders[p].value).toPrecision(3);
+                paramInputs[p].value = parseFloat(paramSliders[p].value).toPrecision(4);
+                updateEquivalentDisplays();
                 scheduleUpdate();
             });
             
             paramInputs[p].addEventListener('input', () => {
                 const val = parseFloat(paramInputs[p].value);
                 if (isFinite(val)) paramSliders[p].value = val;
+                updateEquivalentDisplays();
                 scheduleUpdate();
             });
         });
 
         [elements.formulaAmp, elements.formulaPhase, elements.formulaFreq,
-         elements.tStart, elements.tEnd, elements.freqRange, elements.nfft].forEach(el => {
+         elements.tStart, elements.tEnd, elements.freqRange, elements.nfft, elements.g1MaxTau].forEach(el => {
             el.addEventListener('input', scheduleUpdate);
         });
 
         [elements.logScale, elements.showEnvelope, elements.showCarrier,
-         elements.showModSignal, elements.showPhase].forEach(el => {
+         elements.showModSignal, elements.showPhase, elements.showPhaseNoise].forEach(el => {
             el.addEventListener('change', updatePlots);
         });
 
@@ -1224,7 +1540,6 @@ function evalFullFormula(formula, t, params, freqPhase) {
             updatePlots();
         });
         
-        // Modify existing formula input listeners to also rebuild full formula:
         [elements.formulaAmp, elements.formulaPhase, elements.formulaFreq].forEach(el => {
             el.addEventListener('input', () => {
                 if (!elements.useFullFormula.checked) {
@@ -1233,6 +1548,7 @@ function evalFullFormula(formula, t, params, freqPhase) {
                 scheduleUpdate();
             });
         });
+
         document.querySelectorAll('.preset-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const preset = presets[btn.dataset.preset];
@@ -1240,6 +1556,7 @@ function evalFullFormula(formula, t, params, freqPhase) {
                     elements.formulaAmp.value = preset.amp;
                     elements.formulaPhase.value = preset.phase;
                     elements.formulaFreq.value = preset.freq;
+                    buildFullFormula();
                     updatePlots();
                 }
             });
@@ -1278,6 +1595,8 @@ function evalFullFormula(formula, t, params, freqPhase) {
             resizeTimeout = setTimeout(updatePlots, 100);
         });
 
+        // Initial update
+        updateEquivalentDisplays();
         updatePlots();
     })();
     </script>
